@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { 
+import {
   ArrowLeft,
   FileText,
   ClipboardCheck,
@@ -65,30 +65,9 @@ export function DSORequestActionDetail({ requestId, onBack, userData }: DSOReque
   const fetchRequestDetail = async () => {
     try {
       setLoading(true);
-      const token = userData?.data?.session?.access_token;
+      // Backend endpoint not yet implemented, simulating API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-268175b3/dso/request-actions/${requestId}`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch request detail');
-      }
-
-      setRequest(result.request);
-      setResponses(result.responses || []);
-    } catch (error: any) {
-      console.error('Error fetching request detail:', error);
-      // Mock data for demonstration
       setRequest({
         id: requestId,
         title: 'Passport Copy Upload',
@@ -277,7 +256,7 @@ export function DSORequestActionDetail({ requestId, onBack, userData }: DSOReque
       {/* Main Content */}
       <main className="p-4 sm:p-6 lg:p-8">
         <div className="max-w-7xl mx-auto space-y-6">
-          
+
           {/* Overview Card */}
           <Card className="shadow-sm border-0">
             <CardHeader>
@@ -351,7 +330,7 @@ export function DSORequestActionDetail({ requestId, onBack, userData }: DSOReque
                   <span className="text-gray-900">{request.completionPercent}%</span>
                 </div>
                 <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
-                  <div 
+                  <div
                     className="h-full bg-[#2A73E8] transition-all"
                     style={{ width: `${request.completionPercent}%` }}
                   ></div>

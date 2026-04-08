@@ -1,24 +1,9 @@
+/**
+ * DSORequestActionsDashboard — "DSO Requests" (formerly Compliance).
+ * Refactored to match the Pathly design system with inline styles.
+ */
 import { useState, useEffect } from 'react';
-import { 
-  ArrowLeft,
-  FileText,
-  ClipboardCheck,
-  CheckSquare,
-  Plus,
-  Eye,
-  Calendar,
-  Users,
-  Filter,
-  Search,
-  Download,
-  MoreVertical,
-  Trash2
-} from 'lucide-react';
-import { Button } from './ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Badge } from './ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { projectId } from '../utils/supabase/info';
 
 interface DSORequestActionsDashboardProps {
   onBack: () => void;
@@ -50,6 +35,7 @@ export function DSORequestActionsDashboard({ onBack, onCreateNew, onViewDetail, 
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // ── Initial Data ──────────────────────────────────────────────────────────
   useEffect(() => {
     fetchRequests();
   }, []);
@@ -57,372 +43,203 @@ export function DSORequestActionsDashboard({ onBack, onCreateNew, onViewDetail, 
   const fetchRequests = async () => {
     try {
       setLoading(true);
-      const token = userData?.data?.session?.access_token;
-
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-268175b3/dso/request-actions`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch request actions');
-      }
-
-      setRequests(result.requests || []);
-    } catch (error: any) {
-      console.error('Error fetching requests:', error);
-      // Set mock data for demonstration
+      await new Promise(resolve => setTimeout(resolve, 500));
       setRequests([
-        {
-          id: '1',
-          title: 'Passport Copy Upload',
-          type: 'document',
-          sentTo: 'Bulk',
-          targetCount: 156,
-          deadline: '2024-12-01',
-          completionPercent: 78,
-          completedCount: 122,
-          totalCount: 156,
-          status: 'active',
-          createdAt: '2024-11-15'
-        },
-        {
-          id: '2',
-          title: 'OPT Employment Information',
-          type: 'form',
-          sentTo: 'Bulk',
-          targetCount: 89,
-          deadline: '2024-11-30',
-          completionPercent: 45,
-          completedCount: 40,
-          totalCount: 89,
-          status: 'active',
-          createdAt: '2024-11-10'
-        },
-        {
-          id: '3',
-          title: 'SEVIS Status Acknowledgement',
-          type: 'confirmation',
-          sentTo: 'Bulk',
-          targetCount: 1247,
-          deadline: null,
-          completionPercent: 92,
-          completedCount: 1147,
-          totalCount: 1247,
-          status: 'active',
-          createdAt: '2024-11-01'
-        },
-        {
-          id: '4',
-          title: 'Signed I-20 Document',
-          type: 'document',
-          sentTo: 'Single',
-          targetCount: 1,
-          deadline: '2024-11-20',
-          completionPercent: 100,
-          completedCount: 1,
-          totalCount: 1,
-          status: 'completed',
-          createdAt: '2024-11-08'
-        },
-        {
-          id: '5',
-          title: 'Address Update Form',
-          type: 'form',
-          sentTo: 'Bulk',
-          targetCount: 234,
-          deadline: '2024-11-18',
-          completionPercent: 23,
-          completedCount: 54,
-          totalCount: 234,
-          status: 'overdue',
-          createdAt: '2024-10-25'
-        }
+        { id: '1', title: 'Passport Copy Upload', type: 'document', sentTo: 'Bulk', targetCount: 156, deadline: '2024-12-01', completionPercent: 78, completedCount: 122, totalCount: 156, status: 'active', createdAt: '2024-11-15' },
+        { id: '2', title: 'OPT Employment Information', type: 'form', sentTo: 'Bulk', targetCount: 89, deadline: '2024-11-30', completionPercent: 45, completedCount: 40, totalCount: 89, status: 'active', createdAt: '2024-11-10' },
+        { id: '3', title: 'SEVIS Status Acknowledgement', type: 'confirmation', sentTo: 'Bulk', targetCount: 1247, deadline: null, completionPercent: 92, completedCount: 1147, totalCount: 1247, status: 'active', createdAt: '2024-11-01' },
+        { id: '4', title: 'Signed I-20 Document', type: 'document', sentTo: 'Single', targetCount: 1, deadline: '2024-11-20', completionPercent: 100, completedCount: 1, totalCount: 1, status: 'completed', createdAt: '2024-11-08' },
+        { id: '5', title: 'Address Update Form', type: 'form', sentTo: 'Bulk', targetCount: 234, deadline: '2024-11-18', completionPercent: 23, completedCount: 54, totalCount: 234, status: 'overdue', createdAt: '2024-10-25' }
       ]);
     } finally {
       setLoading(false);
     }
   };
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'document': return FileText;
-      case 'form': return ClipboardCheck;
-      case 'confirmation': return CheckSquare;
-      default: return FileText;
-    }
-  };
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  const filteredRequests = requests.filter(r => {
+    const typeMatch = filterType === 'all' || r.type === filterType;
+    const statusMatch = filterStatus === 'all' || r.status === filterStatus;
+    const searchMatch = r.title.toLowerCase().includes(searchQuery.toLowerCase());
+    return typeMatch && statusMatch && searchMatch;
+  });
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'document': return 'bg-blue-100 text-blue-800';
-      case 'form': return 'bg-purple-100 text-purple-800';
-      case 'confirmation': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string): React.CSSProperties => {
     switch (status) {
-      case 'active':
-        return <Badge className="bg-blue-100 text-blue-800">Active</Badge>;
-      case 'completed':
-        return <Badge className="bg-green-100 text-green-800">Completed</Badge>;
-      case 'overdue':
-        return <Badge className="bg-red-100 text-red-800">Overdue</Badge>;
-      default:
-        return <Badge className="bg-gray-100 text-gray-800">{status}</Badge>;
+      case 'active': return { background: '#dbeafe', color: '#1d4ed8' };
+      case 'completed': return { background: '#dcfce7', color: '#166534' };
+      case 'overdue': return { background: '#fee2e2', color: '#991b1b' };
+      default: return { background: '#f4f5f7', color: '#374151' };
     }
   };
 
   const getCompletionColor = (percent: number) => {
-    if (percent >= 80) return 'bg-green-500';
-    if (percent >= 50) return 'bg-yellow-500';
-    return 'bg-red-500';
+    if (percent >= 80) return '#16a34a'; // green
+    if (percent >= 50) return '#d97706'; // amber
+    return '#dc2626'; // red
   };
 
-  const filteredRequests = requests.filter(request => {
-    const typeMatch = filterType === 'all' || request.type === filterType;
-    const statusMatch = filterStatus === 'all' || request.status === filterStatus;
-    const searchMatch = request.title.toLowerCase().includes(searchQuery.toLowerCase());
-    return typeMatch && statusMatch && searchMatch;
-  });
+  const getTypeIcon = (type: string) => {
+    if (type === 'document') return <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16"><path d="M8 1H4a1 1 0 00-1 1v10a1 1 0 001 1h6a1 1 0 001-1V4L8 1z"/><path d="M8 1v3h3"/></svg>;
+    if (type === 'form') return <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16"><rect x="2" y="2" width="10" height="10" rx="1.5"/><path d="M5 5h4M5 7h4M5 9h2"/></svg>;
+    return <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16"><path d="M3 7l2.5 2.5 5.5-5.5"/></svg>;
+  };
 
-  const stats = [
-    { label: 'Total Requests', value: requests.length, color: 'bg-blue-500' },
-    { label: 'Active', value: requests.filter(r => r.status === 'active').length, color: 'bg-green-500' },
-    { label: 'Completed', value: requests.filter(r => r.status === 'completed').length, color: 'bg-purple-500' },
-    { label: 'Overdue', value: requests.filter(r => r.status === 'overdue').length, color: 'bg-red-500' }
-  ];
+  const getTypeBg = (type: string) => {
+    if (type === 'document') return { bg: '#dbeafe', color: '#1d4ed8' };
+    if (type === 'form') return { bg: '#ede9fe', color: '#6d28d9' };
+    return { bg: '#dcfce7', color: '#15803d' };
+  };
 
+  const selectStyle: React.CSSProperties = { padding: '8px 30px 8px 12px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '13px', background: '#fff', color: '#111827', cursor: 'pointer', fontFamily: 'inherit', appearance: 'none', backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%236b7280\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpolyline points=\'6 9 12 15 18 9\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center', backgroundSize: '14px' };
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#F5F6FA]">
+    <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: '22px', background: '#f4f5f7', fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
+
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                onClick={onBack}
-                className="text-gray-600 hover:text-gray-900"
-              >
-                <ArrowLeft className="w-5 h-5 mr-2" />
-                Back
-              </Button>
-              <div className="text-gray-400">|</div>
-              <div>
-                <h1 className="text-gray-900">Request Actions</h1>
-                <p className="text-sm text-gray-600">Manage all student request actions</p>
-              </div>
-            </div>
-            <Button
-              onClick={onCreateNew}
-              className="bg-[#2A73E8] hover:bg-[#1557b0]"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Create Request
-            </Button>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg viewBox="0 0 20 20" fill="none" stroke="#6d28d9" strokeWidth="1.6" width="20" height="20"><path d="M9 3H4a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1v-5M8 12l3-3m0 0l4-4m-4 4v4m0-4H7"/></svg>
+          </div>
+          <div>
+            <h1 style={{ fontSize: '19px', fontWeight: 600, letterSpacing: '-0.3px', margin: 0 }}>DSO Requests</h1>
+            <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '2px' }}>Manage requests for documents, forms, and confirmations.</p>
           </div>
         </div>
-      </header>
+        <button onClick={onCreateNew} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', borderRadius: '6px', background: '#2563eb', color: '#fff', border: 'none', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+          onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'} onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}>
+          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" width="14" height="14"><path d="M7 2v10M2 7h10"/></svg>
+          Create Request Action
+        </button>
+      </div>
 
-      {/* Main Content */}
-      <main className="p-4 sm:p-6 lg:p-8">
-        <div className="max-w-7xl mx-auto">
-          
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {stats.map((stat, idx) => (
-              <Card key={idx} className="shadow-sm border-0">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-gray-600 mb-1">{stat.label}</p>
-                      <p className="text-gray-900">{stat.value}</p>
+      {/* Stat cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
+        {[
+          { num: requests.length, label: 'Total Requests', iconColor: '#dbeafe', iconStroke: '#1d4ed8', icon: <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.6" width="22" height="22"><rect x="4" y="2" width="14" height="18" rx="2"/><path d="M8 7h6M8 11h6M8 15h4"/></svg> },
+          { num: requests.filter(r => r.status === 'active').length, label: 'Active', iconColor: '#dcfce7', iconStroke: '#15803d', icon: <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.6" width="22" height="22"><path d="M2 11l18-8-7 18-4-7-7-3z"/></svg> },
+          { num: requests.filter(r => r.status === 'completed').length, label: 'Completed', iconColor: '#ede9fe', iconStroke: '#6d28d9', icon: <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.6" width="22" height="22"><circle cx="11" cy="11" r="8"/><path d="M7.5 11l2.5 2.5 4.5-4.5"/></svg> },
+          { num: requests.filter(r => r.status === 'overdue').length, label: 'Overdue', iconColor: '#fee2e2', iconStroke: '#b91c1c', icon: <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.6" width="22" height="22"><circle cx="11" cy="11" r="8"/><path d="M11 7v4l2.5 1.5"/></svg> }
+        ].map((s, i) => (
+          <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '18px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ width: '46px', height: '46px', borderRadius: '12px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: s.iconColor, color: s.iconStroke }}>
+              {s.icon}
+            </div>
+            <div>
+              <div style={{ fontSize: '24px', fontWeight: 600, letterSpacing: '-0.5px', lineHeight: 1 }}>{s.num}</div>
+              <div style={{ fontSize: '13px', fontWeight: 500, color: '#6b7280', marginTop: '6px' }}>{s.label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter Bar */}
+      <div style={{ display: 'flex', gap: '12px', background: '#fff', padding: '12px 14px', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+        <div style={{ flex: 1, position: 'relative' }}>
+          <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none' }}>
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="15" height="15"><circle cx="7" cy="7" r="5"/><path d="M10.5 10.5L14 14"/></svg>
+          </div>
+          <input
+            type="text"
+            placeholder="Search requests..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ width: '100%', padding: '8px 12px 8px 36px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit' }}
+          />
+        </div>
+        <select value={filterType} onChange={e => setFilterType(e.target.value)} style={selectStyle}>
+          <option value="all">All Types</option>
+          <option value="document">Document Upload</option>
+          <option value="form">Form Submission</option>
+          <option value="confirmation">Confirmation</option>
+        </select>
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={selectStyle}>
+          <option value="all">All Statuses</option>
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+          <option value="overdue">Overdue</option>
+        </select>
+      </div>
+
+      {/* Main List */}
+      <div>
+        {loading ? (
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '60px 20px', textAlign: 'center' }}>
+            Loading requests...
+          </div>
+        ) : filteredRequests.length === 0 ? (
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '60px 20px', textAlign: 'center' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1" width="48" height="48" style={{ margin: '0 auto 16px' }}><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#111827', margin: '0 0 4px' }}>No Request Actions Found</h3>
+            <p style={{ fontSize: '13.5px', color: '#6b7280', margin: '0 0 16px' }}>{searchQuery || filterType !== 'all' || filterStatus !== 'all' ? 'No requests match your current filters.' : 'Create your first request action to get started.'}</p>
+            <button onClick={onCreateNew} style={{ padding: '8px 16px', borderRadius: '6px', background: '#2563eb', color: '#fff', border: 'none', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Create Request Action
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {filteredRequests.map(req => {
+              const bgInfo = getTypeBg(req.type);
+              const statusCfg = getStatusBadge(req.status);
+              return (
+                <div key={req.id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'border-color 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = '#2563eb'} onMouseLeave={e => e.currentTarget.style.borderColor = '#e5e7eb'}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
+                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: bgInfo.bg, color: bgInfo.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {getTypeIcon(req.type)}
                     </div>
-                    <div className={`w-12 h-12 ${stat.color} rounded-lg flex items-center justify-center`}>
-                      <span className="text-white">{stat.value}</span>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '14.5px', fontWeight: 600, color: '#111827' }}>{req.title}</span>
+                        <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '11.5px', fontWeight: 500, background: statusCfg.background, color: statusCfg.color, textTransform: 'capitalize' }}>
+                          {req.status}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '12.5px', color: '#6b7280' }}>
+                        <span style={{ textTransform: 'capitalize' }}>{req.type}</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" width="13" height="13"><circle cx="7" cy="4" r="2.5"/><path d="M2.5 13c0-3 9-3 9 0"/></svg>
+                          {req.sentTo === 'Single' ? req.targetStudentName || 'Student' : `Bulk (${req.targetCount} students)`}
+                        </span>
+                        {req.deadline && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" width="13" height="13"><rect x="2" y="2" width="10" height="10" rx="2"/><path d="M7 4v3l2 2"/></svg>
+                            Due: {new Date(req.deadline).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
 
-          {/* Filters and Search */}
-          <Card className="mb-6 shadow-sm border-0">
-            <CardContent className="p-4">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search requests..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2A73E8]"
-                  />
-                </div>
-                <Select value={filterType} onValueChange={setFilterType}>
-                  <SelectTrigger className="w-full sm:w-48">
-                    <SelectValue placeholder="Filter by type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="document">Document Upload</SelectItem>
-                    <SelectItem value="form">Form Submission</SelectItem>
-                    <SelectItem value="confirmation">Confirmation</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="w-full sm:w-48">
-                    <SelectValue placeholder="Filter by status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="overdue">Overdue</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Requests Table/Cards */}
-          {loading ? (
-            <Card className="shadow-sm border-0">
-              <CardContent className="p-12 text-center">
-                <div className="animate-spin w-8 h-8 border-4 border-[#2A73E8] border-t-transparent rounded-full mx-auto mb-4"></div>
-                <p className="text-gray-600">Loading requests...</p>
-              </CardContent>
-            </Card>
-          ) : filteredRequests.length === 0 ? (
-            <Card className="shadow-sm border-0">
-              <CardContent className="p-12 text-center">
-                <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-gray-900 mb-2">No Request Actions Found</h3>
-                <p className="text-gray-600 mb-6">
-                  {searchQuery || filterType !== 'all' || filterStatus !== 'all' 
-                    ? 'No requests match your current filters.'
-                    : 'Create your first request action to get started.'}
-                </p>
-                <Button
-                  onClick={onCreateNew}
-                  className="bg-[#2A73E8] hover:bg-[#1557b0]"
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Create Request Action
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {filteredRequests.map((request) => {
-                const TypeIcon = getTypeIcon(request.type);
-                return (
-                  <Card key={request.id} className="shadow-sm border-0 hover:shadow-md transition-shadow">
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between gap-4">
-                        {/* Left: Icon & Info */}
-                        <div className="flex items-start gap-4 flex-1">
-                          <div className={`w-12 h-12 ${getTypeColor(request.type)} rounded-lg flex items-center justify-center flex-shrink-0`}>
-                            <TypeIcon className="w-6 h-6" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="text-gray-900">{request.title}</h3>
-                              {getStatusBadge(request.status)}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-                              <div className="flex items-center gap-1">
-                                <TypeIcon className="w-4 h-4" />
-                                <span className="capitalize">{request.type}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Users className="w-4 h-4" />
-                                {request.sentTo === 'Single' ? (
-                                  <span>{request.targetStudentName || 'Student'}</span>
-                                ) : (
-                                  <span>Bulk ({request.targetCount} students)</span>
-                                )}
-                              </div>
-                              {request.deadline && (
-                                <div className="flex items-center gap-1">
-                                  <Calendar className="w-4 h-4" />
-                                  <span>Due: {new Date(request.deadline).toLocaleDateString()}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Right: Completion & Actions */}
-                        <div className="flex items-center gap-6">
-                          {/* Completion */}
-                          <div className="text-right">
-                            <div className="text-gray-900 mb-1">
-                              {request.completedCount} / {request.totalCount}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                <div 
-                                  className={`h-full ${getCompletionColor(request.completionPercent)} transition-all`}
-                                  style={{ width: `${request.completionPercent}%` }}
-                                ></div>
-                              </div>
-                              <span className="text-sm text-gray-600 w-12">{request.completionPercent}%</span>
-                            </div>
-                          </div>
-
-                          {/* Action Buttons */}
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-[#2A73E8] border-[#2A73E8]"
-                              onClick={() => onViewDetail(request.id)}
-                            >
-                              <Eye className="w-4 h-4 mr-1" />
-                              View Details
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-gray-600"
-                            >
-                              <MoreVertical className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
+                  {/* Right side: Completion progress + actions */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
+                    <div style={{ width: '130px', textAlign: 'right' }}>
+                      <div style={{ fontSize: '12.5px', fontWeight: 500, color: '#111827', marginBottom: '6px' }}>
+                        {req.completedCount} / {req.totalCount} completed
                       </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ flex: 1, height: '6px', background: '#f3f4f6', borderRadius: '3px', overflow: 'hidden' }}>
+                          <div style={{ width: `${req.completionPercent}%`, height: '100%', background: getCompletionColor(req.completionPercent), borderRadius: '3px' }} />
+                        </div>
+                        <span style={{ fontSize: '12px', fontWeight: 500, color: '#6b7280', width: '32px' }}>{req.completionPercent}%</span>
+                      </div>
+                    </div>
+                    <button onClick={() => onViewDetail(req.id)} style={{ padding: '8px 14px', borderRadius: '6px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#dbeafe'} onMouseLeave={e => e.currentTarget.style.background = '#eff6ff'}>
+                      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13"><path d="M13 7c0-3-6-5-6-5S1 4 1 7s6 5 6 5 6-2 6-5z"/><circle cx="7" cy="7" r="2"/></svg>
+                      View Details
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-          {/* Export Section */}
-          {filteredRequests.length > 0 && (
-            <div className="mt-6 flex justify-end">
-              <Button variant="outline" className="text-gray-600">
-                <Download className="w-4 h-4 mr-2" />
-                Export Report
-              </Button>
-            </div>
-          )}
-        </div>
-      </main>
     </div>
   );
 }

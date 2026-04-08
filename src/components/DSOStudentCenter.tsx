@@ -1,34 +1,17 @@
+/**
+ * DSOStudentCenter — Student Center page matching the provided HTML reference.
+ *
+ * Preserves all existing data fetching, filtering, sorting, and StudentProfileView
+ * integration — only the render output is rewritten to match the reference design.
+ *
+ * Design tokens from reference:
+ *   --bg: #f4f5f7, --surface: #ffffff, --border: #e5e7eb
+ *   --blue: #2563eb, --green: #16a34a, --red: #dc2626, --amber: #d97706
+ *   Stat cards with 46px rounded-12 icons, DM Sans font
+ *   Tab bar: dark nav bg active, filter bar, student cards, analytics bar charts
+ */
 import { useState, useEffect } from 'react';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
-import { 
-  Users,
-  Filter,
-  Search,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  Eye,
-  Mail,
-  Download,
-  User,
-  Shield,
-  CreditCard,
-  FileText,
-  ArrowUpDown,
-  Loader,
-  Globe,
-  Bell,
-  Home,
-  Plus,
-  BarChart3,
-  TrendingUp,
-  AlertTriangle
-} from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { projectId } from '../utils/supabase/info';
 import { StudentProfileView } from './StudentProfileView';
 
 interface DSOStudentCenterProps {
@@ -41,6 +24,7 @@ interface DSOStudentCenterProps {
 
 interface Student {
   id: string;
+  student_id_number?: string;
   name: string;
   email: string;
   userType: string;
@@ -50,13 +34,72 @@ interface Student {
     visaType?: string;
     status?: string;
     expirationDate?: string;
+    i20ExpirationDate?: string;
     sevisStatus?: string;
     compliance?: string;
     passportStatus?: string;
     passportExpirationDate?: string;
     lastUpdated?: string;
+    degreeLevel?: string;
+    major?: string;
+    programOfStudy?: string;
+    expectedGradDate?: string;
   };
 }
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function formatDate(dateString?: string) {
+  if (!dateString) return 'Not set';
+  return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Badge styling matching the reference
+function badgeStyle(type: string): React.CSSProperties {
+  const styles: Record<string, React.CSSProperties> = {
+    'f1':         { background: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe', fontFamily: "'DM Mono', monospace", fontSize: '11px' },
+    'j1':         { background: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe', fontFamily: "'DM Mono', monospace", fontSize: '11px' },
+    'm1':         { background: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe', fontFamily: "'DM Mono', monospace", fontSize: '11px' },
+    'active':     { background: '#dcfce7', color: '#166534' },
+    'pending':    { background: '#fef9c3', color: '#854d0e' },
+    'expired':    { background: '#fee2e2', color: '#991b1b' },
+    'expiring soon': { background: '#fee2e2', color: '#991b1b' },
+    'compliance': { background: '#dbeafe', color: '#1d4ed8' },
+    'na':         { background: '#f4f5f7', color: '#9ca3af', border: '1px solid #e5e7eb' },
+  };
+  return styles[type.toLowerCase()] ?? styles['na'];
+}
+
+function Badge({ label, type }: { label: string; type: string }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center',
+      padding: '3px 10px', borderRadius: '20px',
+      fontSize: '12px', fontWeight: 500, whiteSpace: 'nowrap',
+      ...badgeStyle(type),
+    }}>
+      {label}
+    </span>
+  );
+}
+
+function visaBadgeType(visaType?: string) {
+  if (!visaType) return 'na';
+  return visaType.toLowerCase().replace('-', '');
+}
+
+function statusBadgeType(status?: string) {
+  if (!status) return 'na';
+  return status.toLowerCase();
+}
+
+function complianceBadgeType(compliance?: string) {
+  if (!compliance) return 'na';
+  if (compliance.toLowerCase().includes('compliance')) return 'compliance';
+  return 'na';
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────
 
 export function DSOStudentCenter({ onBack, onLogout, userName = 'DSO Admin', userData, onCreateRequestAction }: DSOStudentCenterProps) {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -69,623 +112,391 @@ export function DSOStudentCenter({ onBack, onLogout, userName = 'DSO Admin', use
   const [students, setStudents] = useState<Student[]>([]);
   const [currentTab, setCurrentTab] = useState<'list' | 'analytics'>('list');
 
-  // Get user type
   const userType = userData?.data?.user?.user_metadata?.userType;
-  const universityId = userData?.data?.user?.user_metadata?.universityId || 'stanford';
+  const universityId = userData?.data?.user?.user_metadata?.schoolId || userData?.data?.user?.user_metadata?.universityId || 'stanford';
 
-  // Check user type on mount
   useEffect(() => {
     if (userType && userType !== 'dso') {
-      alert(`You are logged in as a ${userType.toUpperCase()}. This is the DSO portal. Please access the ${userType.toUpperCase()} portal instead.`);
+      alert(`You are logged in as a ${userType.toUpperCase()}. This is the DSO portal.`);
     }
   }, [userType]);
 
-  // Fetch students
-  useEffect(() => {
-    fetchStudents();
-  }, [userData]);
+  useEffect(() => { fetchStudents(); }, [userData]);
 
   const fetchStudents = async () => {
     try {
       setLoading(true);
-      
       const token = userData?.data?.session?.access_token;
-      if (!token) {
-        console.error('No access token found');
-        return;
-      }
+      if (!token) { console.error('No access token'); return; }
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-268175b3/dso/students/${universityId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
+        `https://${projectId}.supabase.co/functions/v1/make-server-268175b3/students/school/${universityId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('Error fetching students:', error);
-        return;
-      }
+      if (!response.ok) { console.error('Error fetching students:', await response.json()); return; }
 
       const result = await response.json();
-      console.log('Fetched students:', result.students);
-      setStudents(result.students || []);
-    } catch (error) {
-      console.error('Error fetching students:', error);
-    } finally {
-      setLoading(false);
-    }
+      const studentData = result.students || result.data || (Array.isArray(result) ? result : []);
+      const mapped = studentData.map((s: any) => ({
+        id: s.id,
+        student_id_number: s.student_id_number ?? null,
+        name: s.user?.full_name || `${s.user?.first_name ?? ''} ${s.user?.last_name ?? ''}`.trim() || s.user?.email || 'Unknown Student',
+        email: s.user?.email ?? s.email ?? '',
+        userType: s.user?.role ?? 'student',
+        universityId: s.school_id,
+        createdAt: s.created_at,
+        visaProfile: {
+          visaType: s.visa_type ?? undefined,
+          status: s.visa_status ?? undefined,
+          expirationDate: s.i20_expiration_date ?? s.visa_expiration_date ?? undefined,
+          i20ExpirationDate: s.i20_expiration_date ?? undefined,
+          sevisStatus: s.sevis_status ?? undefined,
+          compliance: s.compliance_status ?? undefined,
+          passportStatus: s.passport_number ? 'Valid' : undefined,
+          passportExpirationDate: s.passport_expiration_date ?? undefined,
+          lastUpdated: s.updated_at ?? undefined,
+          degreeLevel: s.degree_level ?? undefined,
+          major: s.major ?? undefined,
+          programOfStudy: s.program_of_study ?? undefined,
+          expectedGradDate: s.expected_graduation_date ?? undefined,
+        },
+      }));
+      setStudents(mapped);
+    } catch (error) { console.error('Error fetching students:', error); }
+    finally { setLoading(false); }
   };
 
-  // Statistics
-  const stats = [
-    { 
-      label: 'Total Students', 
-      value: students.length, 
-      icon: Users, 
-      color: 'bg-blue-500',
-      subtext: 'Active enrolled'
-    },
-    { 
-      label: 'Visa Expiring Soon', 
-      value: students.filter(s => {
-        if (!s.visaProfile?.expirationDate) return false;
-        const daysUntil = Math.ceil((new Date(s.visaProfile.expirationDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-        return daysUntil > 0 && daysUntil <= 90;
-      }).length,
-      icon: Clock, 
-      color: 'bg-yellow-500',
-      subtext: 'Within 90 days'
-    },
-    { 
-      label: 'Non-Compliant', 
-      value: students.filter(s => s.visaProfile?.compliance === 'non-compliant').length, 
-      icon: AlertTriangle, 
-      color: 'bg-red-500',
-      subtext: 'Need attention'
-    },
-    { 
-      label: 'Active SEVIS', 
-      value: students.filter(s => s.visaProfile?.sevisStatus === 'active').length, 
-      icon: CheckCircle2, 
-      color: 'bg-green-500',
-      subtext: 'In good standing'
-    }
-  ];
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  const visaExpiringSoon = students.filter(s => {
+    if (!s.visaProfile?.expirationDate) return false;
+    const days = Math.ceil((new Date(s.visaProfile.expirationDate).getTime() - Date.now()) / (86400000));
+    return days > 0 && days <= 90;
+  }).length;
 
-  // Filter and sort students
-  const filteredStudents = students
-    .filter(student => {
-      const visaMatch = filterVisaType === 'all' || student.visaProfile?.visaType === filterVisaType;
-      const sevisMatch = filterSevisStatus === 'all' || student.visaProfile?.sevisStatus === filterSevisStatus;
-      const passportMatch = filterPassportStatus === 'all' || student.visaProfile?.passportStatus === filterPassportStatus;
-      const searchMatch = searchQuery === '' || 
-        student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        student.email.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      return visaMatch && sevisMatch && passportMatch && searchMatch;
+  const nonCompliant = students.filter(s => s.visaProfile?.compliance === 'non-compliant').length;
+  const activeSEVIS = students.filter(s => s.visaProfile?.sevisStatus === 'active' || s.visaProfile?.sevisStatus === 'Active').length;
+
+  // ── Filter & Sort ─────────────────────────────────────────────────────────
+  const filtered = students
+    .filter(s => {
+      if (filterVisaType !== 'all' && s.visaProfile?.visaType !== filterVisaType) return false;
+      if (filterSevisStatus !== 'all' && s.visaProfile?.sevisStatus !== filterSevisStatus) return false;
+      if (filterPassportStatus !== 'all' && s.visaProfile?.passportStatus !== filterPassportStatus) return false;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        if (!s.name.toLowerCase().includes(q) && !s.email.toLowerCase().includes(q)) return false;
+      }
+      return true;
     })
     .sort((a, b) => {
-      if (sortBy === 'name') {
-        return a.name.localeCompare(b.name);
-      } else if (sortBy === 'visa') {
-        return (a.visaProfile?.visaType || '').localeCompare(b.visaProfile?.visaType || '');
-      } else {
-        return (a.visaProfile?.sevisStatus || '').localeCompare(b.visaProfile?.sevisStatus || '');
-      }
+      if (sortBy === 'visa') return (a.visaProfile?.visaType || '').localeCompare(b.visaProfile?.visaType || '');
+      if (sortBy === 'sevis') return (a.visaProfile?.sevisStatus || '').localeCompare(b.visaProfile?.sevisStatus || '');
+      return a.name.localeCompare(b.name);
     });
 
-  const getStatusColor = (status?: string) => {
-    switch (status) {
-      case 'Active':
-      case 'active':
-        return 'bg-green-100 text-green-800';
-      case 'Expired':
-      case 'expired':
-        return 'bg-red-100 text-red-800';
-      case 'Expiring Soon':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'pending':
-        return 'bg-gray-100 text-gray-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
+  // ── Analytics distributions ───────────────────────────────────────────────
+  const dist = (key: (s: Student) => string) =>
+    students.reduce((a, s) => { const k = key(s); a[k] = (a[k] || 0) + 1; return a; }, {} as Record<string, number>);
 
-  const getComplianceColor = (compliance?: string) => {
-    switch (compliance) {
-      case 'compliant':
-        return 'bg-green-100 text-green-800';
-      case 'non-compliant':
-        return 'bg-red-100 text-red-800';
-      case 'at-risk':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
+  const visaDist = dist(s => s.visaProfile?.visaType || 'Not Set');
+  const sevisDist = dist(s => s.visaProfile?.sevisStatus || 'Not Set');
+  const compDist = dist(s => s.visaProfile?.compliance || 'N/A');
+  const passDist = dist(s => s.visaProfile?.passportStatus || 'Not Set');
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Not set';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
-  // If viewing individual student
+  // ── Profile view ──────────────────────────────────────────────────────────
   if (selectedStudent) {
     return (
-      <StudentProfileView 
+      <StudentProfileView
         student={selectedStudent}
-        onBack={() => {
-          setSelectedStudent(null);
-          fetchStudents(); // Refresh the list
-        }}
+        onBack={() => { setSelectedStudent(null); fetchStudents(); }}
         userData={userData}
         onCreateRequestAction={onCreateRequestAction}
       />
     );
   }
 
-  // Visa Type Distribution for Analytics
-  const visaTypeDistribution = students.reduce((acc, student) => {
-    const type = student.visaProfile?.visaType || 'Not Set';
-    acc[type] = (acc[type] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  // ── Shared styles ──────────────────────────────────────────────────────────
+  const filterSelectStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: '7px',
+    padding: '0 12px', height: '36px',
+    background: '#f4f5f7', border: '1px solid #e5e7eb',
+    borderRadius: '6px', fontSize: '13px', fontWeight: 400,
+    color: '#111827', cursor: 'pointer', whiteSpace: 'nowrap',
+    fontFamily: 'inherit', appearance: 'none',
+  };
 
-  // SEVIS Status Distribution
-  const sevisStatusDistribution = students.reduce((acc, student) => {
-    const status = student.visaProfile?.sevisStatus || 'Not Set';
-    acc[status] = (acc[status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  // Compliance Distribution
-  const complianceDistribution = students.reduce((acc, student) => {
-    const compliance = student.visaProfile?.compliance || 'Not Set';
-    acc[compliance] = (acc[compliance] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  // Passport Status Distribution
-  const passportStatusDistribution = students.reduce((acc, student) => {
-    const status = student.visaProfile?.passportStatus || 'Not Set';
-    acc[status] = (acc[status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  // Main view
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#F5F6FA]">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 mb-6">
-        <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-[#2A73E8] rounded-lg flex items-center justify-center">
-                  <Globe className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-xl text-gray-900">Pathly</span>
-                <Badge className="ml-2 bg-purple-100 text-purple-800 hover:bg-purple-100">DSO Admin</Badge>
-              </div>
-              <span className="text-gray-300 hidden sm:block">|</span>
-              <div className="hidden sm:flex items-center gap-2">
-                <Users className="w-5 h-5 text-[#2A73E8]" />
-                <span className="text-gray-700">Student Center</span>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={onBack}
-                className="border-[#2A73E8] text-[#2A73E8] hover:bg-[#2A73E8] hover:text-white"
-              >
-                <Home className="w-4 h-4 mr-2" />
-                Back to Dashboard
-              </Button>
-              <Button variant="ghost" size="sm">
-                <Bell className="w-5 h-5" />
-              </Button>
-              {userName && (
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 bg-[#2A73E8] rounded-full flex items-center justify-center text-white">
-                    {userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
-                  </div>
-                  {onLogout && (
-                    <Button variant="ghost" size="sm" onClick={onLogout}>
-                      Log Out
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+    <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: '22px', background: '#f4f5f7', fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
+
+      {/* Page heading */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg viewBox="0 0 20 20" fill="none" stroke="#2563eb" strokeWidth="1.6" width="20" height="20">
+            <circle cx="10" cy="6" r="3"/><path d="M4 17c0-3.5 12-3.5 12 0"/>
+          </svg>
         </div>
-      </header>
+        <div>
+          <h1 style={{ fontSize: '19px', fontWeight: 600, letterSpacing: '-0.3px', margin: 0 }}>Student Center</h1>
+          <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '2px' }}>Manage student information, visa status, and compliance records.</p>
+        </div>
+      </div>
 
-      {/* Main Content */}
-      <div className="px-4 sm:px-6 lg:px-8 pb-8">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-2">
-              <Users className="w-8 h-8 text-[#2A73E8]" />
-              <h1 className="text-gray-900">Student Center</h1>
+      {/* Stat cards — 4 columns */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
+        {[
+          { num: students.length, sub: 'Active enrolled', label: 'Total Students', iconColor: '#dbeafe', iconStroke: '#1d4ed8',
+            icon: <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.6" width="22" height="22"><circle cx="11" cy="7" r="3.5"/><path d="M4 19c0-4 14-4 14 0"/></svg> },
+          { num: visaExpiringSoon, sub: 'Within 90 days', label: 'Visa Expiring Soon', iconColor: '#fef3c7', iconStroke: '#b45309',
+            icon: <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.6" width="22" height="22"><circle cx="11" cy="11" r="8"/><path d="M11 7v4l2.5 2.5"/></svg> },
+          { num: nonCompliant, sub: 'Need attention', label: 'Non-Compliant', iconColor: '#fee2e2', iconStroke: '#b91c1c',
+            icon: <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.6" width="22" height="22"><path d="M11 3L2 19h18L11 3z"/><path d="M11 10v4M11 16v.5"/></svg> },
+          { num: activeSEVIS, sub: 'In good standing', label: 'Active SEVIS', iconColor: '#dcfce7', iconStroke: '#15803d',
+            icon: <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.6" width="22" height="22"><circle cx="11" cy="11" r="8"/><path d="M7.5 11l2.5 2.5 4.5-4.5"/></svg> },
+        ].map(({ num, sub, label, iconColor, iconStroke, icon }, i) => (
+          <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '18px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ width: '46px', height: '46px', borderRadius: '12px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: iconColor, color: iconStroke }}>
+              {icon}
             </div>
-            <p className="text-gray-600">Manage student information, visa status, and compliance records.</p>
+            <div>
+              <div style={{ fontSize: '24px', fontWeight: 600, letterSpacing: '-0.5px', lineHeight: 1 }}>{num}</div>
+              <div style={{ fontSize: '11.5px', color: '#9ca3af', marginTop: '2px' }}>{sub}</div>
+              <div style={{ fontSize: '13px', fontWeight: 500, color: '#6b7280', marginTop: '6px' }}>{label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tab bar */}
+      <div style={{ display: 'inline-flex', background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '3px', gap: '2px', alignSelf: 'flex-start' }}>
+        {(['list', 'analytics'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setCurrentTab(tab)}
+            style={{
+              padding: '7px 22px', borderRadius: '6px',
+              fontSize: '13.5px', fontWeight: 500, cursor: 'pointer',
+              border: 'none', fontFamily: 'inherit', transition: 'all 0.15s',
+              background: currentTab === tab ? '#1a1f2e' : 'transparent',
+              color: currentTab === tab ? '#fff' : '#6b7280',
+            }}
+          >
+            {tab === 'list' ? 'Student List' : 'Analytics'}
+          </button>
+        ))}
+      </div>
+
+      {/* ── STUDENT LIST TAB ── */}
+      {currentTab === 'list' && (
+        <>
+          {/* Filter bar */}
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+            {/* Search */}
+            <div style={{ flex: 1, minWidth: '220px', maxWidth: '420px', display: 'flex', alignItems: 'center', gap: '8px', background: '#f4f5f7', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '0 12px', height: '36px', fontSize: '13px', color: '#6b7280' }}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M11 11l3 3"/></svg>
+              <input
+                type="text"
+                placeholder="Search by name or email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{ border: 'none', background: 'transparent', outline: 'none', flex: 1, fontSize: '13px', fontFamily: 'inherit', color: '#111827' }}
+              />
+            </div>
+
+            {/* Visa Type */}
+            <select value={filterVisaType} onChange={e => setFilterVisaType(e.target.value)} style={filterSelectStyle}>
+              <option value="all">All Visa Types</option>
+              <option value="F-1">F-1</option>
+              <option value="J-1">J-1</option>
+              <option value="M-1">M-1</option>
+            </select>
+
+            {/* SEVIS Status */}
+            <select value={filterSevisStatus} onChange={e => setFilterSevisStatus(e.target.value)} style={filterSelectStyle}>
+              <option value="all">All SEVIS Status</option>
+              <option value="Active">Active</option>
+              <option value="active">active</option>
+              <option value="Terminated">Terminated</option>
+              <option value="Completed">Completed</option>
+            </select>
+
+            {/* Passport Status */}
+            <select value={filterPassportStatus} onChange={e => setFilterPassportStatus(e.target.value)} style={filterSelectStyle}>
+              <option value="all">All Passport Status</option>
+              <option value="Valid">Valid</option>
+              <option value="Expiring Soon">Expiring Soon</option>
+              <option value="Expired">Expired</option>
+            </select>
+
+            {/* Divider */}
+            <div style={{ width: '100%', height: '1px', background: '#e5e7eb', margin: '4px 0' }} />
+
+            {/* Sort */}
+            <select value={sortBy} onChange={e => setSortBy(e.target.value as any)} style={filterSelectStyle}>
+              <option value="name">Sort by Name</option>
+              <option value="visa">Sort by Visa Type</option>
+              <option value="sevis">Sort by SEVIS Status</option>
+            </select>
           </div>
 
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {stats.map((stat, idx) => (
-              <Card key={idx} className="shadow-sm border-0">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`w-12 h-12 ${stat.color} rounded-lg flex items-center justify-center`}>
-                      <stat.icon className="w-6 h-6 text-white" />
+          {/* List header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>All Students ({filtered.length})</span>
+            <button style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '7px 14px', borderRadius: '6px',
+              border: '1px solid #e5e7eb', background: '#fff',
+              fontSize: '13px', fontWeight: 500, cursor: 'pointer',
+              color: '#111827', fontFamily: 'inherit',
+            }}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2v8M5 7l3 3 3-3M3 13h10"/></svg>
+              Export
+            </button>
+          </div>
+
+          {/* Student cards */}
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af' }}>Loading students…</div>
+          ) : filtered.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af' }}>
+              <p style={{ fontSize: '14px', marginBottom: '4px' }}>No students found</p>
+              <p style={{ fontSize: '12px' }}>Try adjusting your filters</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {filtered.map(student => (
+                <div
+                  key={student.id}
+                  style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '16px 20px', transition: 'box-shadow 0.15s', cursor: 'pointer' }}
+                  onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)')}
+                  onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
+                  onClick={() => setSelectedStudent(student)}
+                >
+                  {/* Top row: name + email + View Profile */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 600 }}>{student.name}</span>
+                      <span style={{ fontSize: '12.5px', color: '#9ca3af', background: '#f4f5f7', border: '1px solid #e5e7eb', padding: '2px 8px', borderRadius: '4px' }}>
+                        {student.email}
+                      </span>
                     </div>
-                    <div className="text-right">
-                      <p className="text-gray-900 mb-1">{stat.value}</p>
-                      <p className="text-gray-500">{stat.subtext}</p>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSelectedStudent(student); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '6px',
+                        padding: '7px 16px', borderRadius: '6px',
+                        background: '#2563eb', color: '#fff', border: 'none',
+                        fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                        transition: 'background 0.15s',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#1d4ed8')}
+                      onMouseLeave={e => (e.currentTarget.style.background = '#2563eb')}
+                    >
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="14" height="14"><circle cx="8" cy="6" r="2.5"/><path d="M2 14c0-3 12-3 12 0"/></svg>
+                      View Profile
+                    </button>
+                  </div>
+
+                  {/* Meta grid — 4 columns */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '11.5px', color: '#9ca3af', marginBottom: '5px', fontWeight: 500 }}>Visa Type</div>
+                      <Badge label={student.visaProfile?.visaType || 'Not set'} type={visaBadgeType(student.visaProfile?.visaType)} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11.5px', color: '#9ca3af', marginBottom: '5px', fontWeight: 500 }}>Visa Status</div>
+                      <Badge label={student.visaProfile?.status || 'pending'} type={statusBadgeType(student.visaProfile?.status)} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11.5px', color: '#9ca3af', marginBottom: '5px', fontWeight: 500 }}>SEVIS Status</div>
+                      <Badge label={student.visaProfile?.sevisStatus || 'Not set'} type={statusBadgeType(student.visaProfile?.sevisStatus)} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11.5px', color: '#9ca3af', marginBottom: '5px', fontWeight: 500 }}>Compliance</div>
+                      <Badge label={student.visaProfile?.compliance || 'N/A'} type={complianceBadgeType(student.visaProfile?.compliance)} />
                     </div>
                   </div>
-                  <p className="text-gray-700">{stat.label}</p>
-                </CardContent>
-              </Card>
+
+                  {/* Footer */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px', paddingTop: '10px', borderTop: '1px solid #f3f4f6', fontSize: '12.5px', color: '#6b7280' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <svg viewBox="0 0 16 16" fill="none" stroke="#9ca3af" strokeWidth="1.5" width="13" height="13"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
+                      Visa Exp: {formatDate(student.visaProfile?.expirationDate)}
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <svg viewBox="0 0 16 16" fill="none" stroke="#9ca3af" strokeWidth="1.5" width="13" height="13"><rect x="2" y="3" width="12" height="10" rx="1"/><path d="M2 7h12"/></svg>
+                      Passport: {student.visaProfile?.passportStatus || 'Not set'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── ANALYTICS TAB ── */}
+      {currentTab === 'analytics' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* 2x2 distribution charts */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+            {[
+              { title: 'Visa Type Distribution', data: visaDist, color: '#2563eb',
+                icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#2563eb" strokeWidth="1.5"><rect x="2" y="10" width="3" height="4"/><rect x="6.5" y="6" width="3" height="8"/><rect x="11" y="2" width="3" height="12"/></svg> },
+              { title: 'SEVIS Status Distribution', data: sevisDist, color: '#16a34a',
+                icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#2563eb" strokeWidth="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg> },
+              { title: 'Compliance Status', data: compDist, color: '#d97706',
+                icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#2563eb" strokeWidth="1.5"><circle cx="8" cy="8" r="6"/><path d="M5.5 8l2 2 3-3"/></svg> },
+              { title: 'Passport Status Distribution', data: passDist, color: '#d97706',
+                icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#2563eb" strokeWidth="1.5"><rect x="2" y="3" width="12" height="10" rx="1"/><path d="M2 7h12"/></svg> },
+            ].map(({ title, data, color, icon }) => (
+              <div key={title} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '20px 22px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px', fontWeight: 600, color: '#111827', marginBottom: '20px' }}>
+                  {icon} {title}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {Object.entries(data).map(([name, count]) => (
+                    <div key={name}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '13px', color: '#111827' }}>{name}</span>
+                        <span style={{ fontSize: '12px', color: '#6b7280', fontWeight: 500 }}>{count} student{count !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div style={{ height: '7px', background: '#e5e7eb', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', borderRadius: '4px', background: color, width: `${students.length > 0 ? (count / students.length) * 100 : 0}%`, transition: 'width 0.4s ease' }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
 
-          {/* Tabs */}
-          <Tabs value={currentTab} onValueChange={(value: any) => setCurrentTab(value)} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
-              <TabsTrigger value="list">Student List</TabsTrigger>
-              <TabsTrigger value="analytics">Analytics</TabsTrigger>
-            </TabsList>
-
-            {/* Student List Tab */}
-            <TabsContent value="list">
-              {/* Filters and Search */}
-              <Card className="shadow-sm border-0 mb-6">
-                <CardContent className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                    {/* Search */}
-                    <div className="lg:col-span-2 relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input
-                        type="text"
-                        placeholder="Search by name or email..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2A73E8]"
-                      />
-                    </div>
-
-                    {/* Visa Type Filter */}
-                    <Select value={filterVisaType} onValueChange={setFilterVisaType}>
-                      <SelectTrigger>
-                        <Filter className="w-4 h-4 mr-2" />
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Visa Types</SelectItem>
-                        <SelectItem value="F-1">F-1</SelectItem>
-                        <SelectItem value="J-1">J-1</SelectItem>
-                        <SelectItem value="M-1">M-1</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    {/* SEVIS Status Filter */}
-                    <Select value={filterSevisStatus} onValueChange={setFilterSevisStatus}>
-                      <SelectTrigger>
-                        <Shield className="w-4 h-4 mr-2" />
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All SEVIS Status</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="terminated">Terminated</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    {/* Passport Status Filter */}
-                    <Select value={filterPassportStatus} onValueChange={setFilterPassportStatus}>
-                      <SelectTrigger>
-                        <CreditCard className="w-4 h-4 mr-2" />
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Passport Status</SelectItem>
-                        <SelectItem value="Valid">Valid</SelectItem>
-                        <SelectItem value="Expiring Soon">Expiring Soon</SelectItem>
-                        <SelectItem value="Expired">Expired</SelectItem>
-                      </SelectContent>
-                    </Select>
+          {/* Key Metrics & Trends — full width */}
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '20px 22px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px', fontWeight: 600, color: '#111827', marginBottom: '20px' }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#2563eb" strokeWidth="1.5"><path d="M2 12l4-4 3 3 5-6"/></svg>
+              Key Metrics &amp; Trends
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', paddingTop: '4px' }}>
+              {[
+                { num: students.length, label: 'Total Enrolled Students' },
+                { num: students.filter(s => s.visaProfile?.compliance === 'compliant' || s.visaProfile?.compliance === 'In Compliance').length, label: 'Compliant Students' },
+                { num: activeSEVIS, label: 'Active SEVIS Records' },
+              ].map(({ num, label }, i, arr) => (
+                <div key={label} style={{ display: 'contents' }}>
+                  <div style={{ flex: 1, textAlign: 'center', padding: '12px 0' }}>
+                    <div style={{ fontSize: '28px', fontWeight: 600, letterSpacing: '-0.5px', color: '#111827', lineHeight: 1 }}>{num}</div>
+                    <div style={{ fontSize: '12.5px', color: '#6b7280', marginTop: '6px' }}>{label}</div>
                   </div>
-
-                  {/* Sort */}
-                  <div className="mt-4">
-                    <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
-                      <SelectTrigger className="w-full sm:w-48">
-                        <ArrowUpDown className="w-4 h-4 mr-2" />
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="name">Sort by Name</SelectItem>
-                        <SelectItem value="visa">Sort by Visa Type</SelectItem>
-                        <SelectItem value="sevis">Sort by SEVIS Status</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Student List */}
-              <Card className="shadow-sm border-0">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span>All Students ({filteredStudents.length})</span>
-                    <Button variant="outline" size="sm">
-                      <Download className="w-4 h-4 mr-2" />
-                      Export
-                    </Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {loading ? (
-                    <div className="flex flex-col items-center justify-center py-12">
-                      <Loader className="w-12 h-12 text-[#2A73E8] animate-spin mb-4" />
-                      <p className="text-gray-600">Loading students...</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {filteredStudents.length === 0 ? (
-                        <div className="text-center py-12">
-                          <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                          <p className="text-gray-500 mb-2">No students found</p>
-                          <p className="text-gray-400">Try adjusting your filters</p>
-                        </div>
-                      ) : (
-                      filteredStudents.map((student) => (
-                        <div 
-                          key={student.id}
-                          className="p-4 border border-gray-200 rounded-lg hover:border-[#2A73E8] hover:shadow-md transition-all cursor-pointer bg-white"
-                          onClick={() => setSelectedStudent(student)}
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            {/* Left side - Main info */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-3 mb-2 flex-wrap">
-                                <p className="text-gray-900">{student.name}</p>
-                                <Badge variant="outline" className="text-xs">
-                                  {student.email}
-                                </Badge>
-                              </div>
-                              
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-                                <div>
-                                  <p className="text-gray-500 mb-1">Visa Type</p>
-                                  <Badge variant="outline" className="text-[#2A73E8] border-[#2A73E8]">
-                                    {student.visaProfile?.visaType || 'Not set'}
-                                  </Badge>
-                                </div>
-                                <div>
-                                  <p className="text-gray-500 mb-1">Visa Status</p>
-                                  <Badge className={getStatusColor(student.visaProfile?.status)}>
-                                    {student.visaProfile?.status || 'pending'}
-                                  </Badge>
-                                </div>
-                                <div>
-                                  <p className="text-gray-500 mb-1">SEVIS Status</p>
-                                  <Badge variant="outline">
-                                    {student.visaProfile?.sevisStatus || 'Not set'}
-                                  </Badge>
-                                </div>
-                                <div>
-                                  <p className="text-gray-500 mb-1">Compliance</p>
-                                  <Badge className={getComplianceColor(student.visaProfile?.compliance)}>
-                                    {student.visaProfile?.compliance || 'Not set'}
-                                  </Badge>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-4 text-gray-500 mt-3">
-                                <div className="flex items-center gap-1">
-                                  <Clock className="w-4 h-4" />
-                                  <span>Visa Exp: {formatDate(student.visaProfile?.expirationDate)}</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <CreditCard className="w-4 h-4" />
-                                  <span>Passport: {student.visaProfile?.passportStatus || 'Not set'}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Right side - Actions */}
-                            <div className="flex flex-col gap-2">
-                              <Button 
-                                size="sm" 
-                                className="bg-[#2A73E8] hover:bg-[#1557b0]"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedStudent(student);
-                                }}
-                              >
-                                <Eye className="w-4 h-4 mr-2" />
-                                View Profile
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                      )}
-                    </div>
+                  {i < arr.length - 1 && (
+                    <div style={{ width: '1px', height: '50px', background: '#e5e7eb', flexShrink: 0 }} />
                   )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Analytics Tab */}
-            <TabsContent value="analytics">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Visa Type Distribution */}
-                <Card className="shadow-sm border-0">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BarChart3 className="w-5 h-5 text-[#2A73E8]" />
-                      Visa Type Distribution
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {Object.entries(visaTypeDistribution).map(([type, count]) => (
-                        <div key={type}>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-gray-700">{type}</span>
-                            <span className="text-gray-900">{count} students</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-[#2A73E8] h-2 rounded-full transition-all"
-                              style={{ width: `${(count / students.length) * 100}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* SEVIS Status Distribution */}
-                <Card className="shadow-sm border-0">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Shield className="w-5 h-5 text-[#2A73E8]" />
-                      SEVIS Status Distribution
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {Object.entries(sevisStatusDistribution).map(([status, count]) => (
-                        <div key={status}>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-gray-700">{status}</span>
-                            <span className="text-gray-900">{count} students</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-green-500 h-2 rounded-full transition-all"
-                              style={{ width: `${(count / students.length) * 100}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Compliance Distribution */}
-                <Card className="shadow-sm border-0">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <CheckCircle2 className="w-5 h-5 text-[#2A73E8]" />
-                      Compliance Status
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {Object.entries(complianceDistribution).map(([compliance, count]) => (
-                        <div key={compliance}>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-gray-700">{compliance}</span>
-                            <span className="text-gray-900">{count} students</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className={`h-2 rounded-full transition-all ${
-                                compliance === 'compliant' ? 'bg-green-500' : 
-                                compliance === 'non-compliant' ? 'bg-red-500' : 'bg-yellow-500'
-                              }`}
-                              style={{ width: `${(count / students.length) * 100}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Passport Status Distribution */}
-                <Card className="shadow-sm border-0">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <CreditCard className="w-5 h-5 text-[#2A73E8]" />
-                      Passport Status Distribution
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {Object.entries(passportStatusDistribution).map(([status, count]) => (
-                        <div key={status}>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-gray-700">{status}</span>
-                            <span className="text-gray-900">{count} students</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className={`h-2 rounded-full transition-all ${
-                                status === 'Valid' ? 'bg-green-500' : 
-                                status === 'Expired' ? 'bg-red-500' : 'bg-yellow-500'
-                              }`}
-                              style={{ width: `${(count / students.length) * 100}%` }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Summary Statistics */}
-                <Card className="shadow-sm border-0 lg:col-span-2">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <TrendingUp className="w-5 h-5 text-[#2A73E8]" />
-                      Key Metrics & Trends
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                      <div className="text-center">
-                        <div className="text-gray-900 mb-1">{students.length}</div>
-                        <p className="text-gray-600">Total Enrolled Students</p>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-gray-900 mb-1">
-                          {students.filter(s => s.visaProfile?.compliance === 'compliant').length}
-                        </div>
-                        <p className="text-gray-600">Compliant Students</p>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-gray-900 mb-1">
-                          {students.filter(s => s.visaProfile?.sevisStatus === 'active').length}
-                        </div>
-                        <p className="text-gray-600">Active SEVIS Records</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-          </Tabs>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

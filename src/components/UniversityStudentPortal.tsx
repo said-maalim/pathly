@@ -1,1128 +1,494 @@
-import { useState, useEffect } from 'react';
-import { 
-  LayoutDashboard, 
-  FileText, 
-  Users, 
-  BookOpen, 
-  Settings,
-  Upload,
-  CheckCircle2,
-  AlertCircle,
-  MessageSquare,
-  Send,
-  Menu,
-  X,
-  Globe,
-  Calendar,
-  FileCheck,
-  Shield,
-  Bell,
-  Plus,
-  Eye,
-  Inbox,
-  ClipboardList,
-  Loader2,
-  ArrowLeft,
-  CreditCard, // Added for passport icon
-  List
-} from 'lucide-react';
-import { Button } from './ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Progress } from './ui/progress';
-import { Badge } from './ui/badge';
-import { Textarea } from './ui/textarea';
-import { Alert, AlertDescription } from './ui/alert';
+/**
+ * UniversityStudentPortal — Student-facing dashboard.
+ * Redesigned to match Pathly design system with dark sidebar, welcome banner,
+ * SEVIS alert strip, status cards, and bottom grid layout.
+ */
+import { useState, useEffect, useCallback } from 'react';
 import { RequestCenter } from './RequestCenter';
 import { I20RequestTracker } from './I20RequestTracker';
 import { StatusBadge } from './StatusBadge';
-import { StudentDocumentsPage } from './StudentDocumentsPage';
 import { ResourcesPage } from './ResourcesPage';
 import { SettingsPage } from './SettingsPage';
-import { AskLexiPage } from './AskLexiPage';
 import { DSORequestsSection } from './DSORequestsSection';
 import { AllRequestsPage } from './AllRequestsPage';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { toast } from 'sonner';
+
+import { useStudentProfile } from '../hooks/useStudentProfile';
+import { useStudentRequests } from '../hooks/useStudentRequests';
+import { useStudentDocuments } from '../hooks/useStudentDocuments';
+import { submitRequest, respondToRequest } from '../services/request.service';
+import { formatDate } from '../lib/utils';
+import type { UserData } from '../types';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type StudentView =
+  | 'dashboard'
+  | 'i20-request'
+  | 'i20-tracker'
+  | 'settings'
+  | 'resources'
+  | 'all-requests'
+  | 'messaging';
 
 interface UniversityStudentPortalProps {
   onNavigate: (page: string) => void;
   onLogout: () => void;
-  userData?: any;
+  userData?: UserData;
 }
 
+// ─── SVG helpers ──────────────────────────────────────────────────────────────
+
+const SVG = {
+  dashboard: <svg viewBox="0 0 16 16" fill="currentColor" width="16" height="16"><path d="M2 2h5v5H2V2zm0 7h5v5H2V9zm7-7h5v5H9V2zm0 7h5v5H9V9z"/></svg>,
+  profile: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16"><circle cx="8" cy="5" r="2.5"/><path d="M3 13c0-3 10-3 10 0"/></svg>,
+  messaging: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16"><path d="M2 3h12v8a1 1 0 01-1 1H3a1 1 0 01-1-1V3zm0 0l6 5 6-5"/></svg>,
+  allRequests: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16"><path d="M8 2h6v12H2V5l3-3h3zm0 0v3H2"/><path d="M5 9h6M5 12h4"/></svg>,
+  requestCenter: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16"><path d="M8 2a4 4 0 00-4 4v3l-1 1h10l-1-1V6a4 4 0 00-4-4zM6.5 13a1.5 1.5 0 003 0"/></svg>,
+  settings: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>,
+  logout: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="16" height="16"><path d="M10 2h3a1 1 0 011 1v10a1 1 0 01-1 1h-3M7 11l3-3-3-3M10 8H3"/></svg>,
+  search: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M11 11l3 3"/></svg>,
+  bell: <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2a4 4 0 00-4 4v3l-1 1h10l-1-1V6a4 4 0 00-4-4zM6.5 13a1.5 1.5 0 003 0"/></svg>,
+  refresh: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="13" height="13"><path d="M2 8a6 6 0 1110.7-3.7M13 2v4H9"/></svg>,
+  alert: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="18" height="18"><path d="M8 2L1 14h14L8 2z"/><path d="M8 7v3M8 12v.5"/></svg>,
+  visa: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="14" height="14"><rect x="1" y="4" width="14" height="9" rx="1.5"/><path d="M1 7h14"/></svg>,
+  passport: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="14" height="14"><path d="M3 2h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zm2 4h6M5 8h4"/></svg>,
+  plus: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="15" height="15"><path d="M8 3v10M3 8h10"/></svg>,
+  clock: <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="15" height="15"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>,
+  chevronDown: <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 4l4 4 4-4"/></svg>,
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export function UniversityStudentPortal({ onNavigate, onLogout, userData }: UniversityStudentPortalProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentView, setCurrentView] = useState<'dashboard' | 'documents' | 'i20-request' | 'i20-tracker' | 'settings' | 'ask-lexi' | 'resources' | 'all-requests'>('dashboard');
-  const [requestType, setRequestType] = useState<'i20' | 'opt' | null>(null);
-  const [requestDetails, setRequestDetails] = useState('');
-  const [i20Requests, setI20Requests] = useState<any[]>([]);
-  const [sevisStatus, setSevisStatus] = useState<any>(null);
-  const [visaStatus, setVisaStatus] = useState<any>(null);
-  const [passportStatus, setPassportStatus] = useState<any>(null); // Added passport status state
-  const [loading, setLoading] = useState(true);
-  const [dsoRequests, setDsoRequests] = useState<any[]>([]);
-  const [respondingToRequest, setRespondingToRequest] = useState<any>(null);
-  const [confirmationChecked, setConfirmationChecked] = useState(false);
-  const [submittingResponse, setSubmittingResponse] = useState(false);
-  const [recentDocuments, setRecentDocuments] = useState<any[]>([]);
+  const [currentView, setCurrentView] = useState<StudentView>('dashboard');
 
-  // Extract user info from userData
-  const userEmail = userData?.data?.user?.email || 'student@university.edu';
-  const userName = userData?.data?.user?.user_metadata?.name || 'Student';
+  const userEmail = userData?.data?.user?.email ?? 'student@university.edu';
+  const userName = userData?.data?.user?.user_metadata?.name ?? 'Student';
+  const userId = userData?.data?.user?.id;
+  const meta = userData?.data?.user?.user_metadata as any;
+  const studentId = meta?.studentId ?? meta?.student_id_number ?? '';
+  const program = meta?.program ?? meta?.major ?? '';
+  const degreeLevel = meta?.degreeLevel ?? meta?.degree_level ?? '';
+  const initials = userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
 
-  // Check user type on mount
+  // ─── Data Hooks ─────────────────────────────────────────────────────────
+  const { sevisStatus, visaStatus, passportStatus, loading: profileLoading, refresh: refreshProfile } = useStudentProfile();
+  const { myRequests, dsoRequests, loading: requestsLoading, refresh: refreshRequests } = useStudentRequests();
+  const { documents: recentDocuments, refresh: refreshDocuments } = useStudentDocuments(userId);
+  const loading = profileLoading || requestsLoading;
+
   useEffect(() => {
     const userType = userData?.data?.user?.user_metadata?.userType;
     if (userType && userType !== 'student') {
-      alert(`You are logged in as a ${userType.toUpperCase()}. This is the student portal. Please access the ${userType.toUpperCase()} portal instead.`);
+      alert(`You are logged in as a ${userType.toUpperCase()}. This is the student portal.`);
     }
   }, [userData]);
 
-  // Fetch SEVIS data and requests on mount
-  useEffect(() => {
-    fetchSevisData();
-    fetchMyRequests();
-    fetchDSORequests();
-    fetchRecentDocuments();
-  }, []);
-
-  // Refresh requests when opening tracker view
-  useEffect(() => {
-    if (currentView === 'i20-tracker') {
-      fetchMyRequests();
-    }
-  }, [currentView]);
-
-  const fetchSevisData = async () => {
+  // ─── Actions ──────────────────────────────────────────────────────────
+  const refreshDashboard = useCallback(async () => {
     try {
-      setLoading(true);
-      const token = userData?.data?.session?.access_token;
-      
-      if (!token) {
-        console.error('No access token available');
-        return;
-      }
+      await Promise.all([refreshProfile(), refreshRequests(), refreshDocuments()]);
+      toast.success('Dashboard refreshed', { description: 'All data has been updated' });
+    } catch { toast.error('Failed to refresh dashboard'); }
+  }, [refreshProfile, refreshRequests, refreshDocuments]);
 
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-268175b3/visa/profile`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      const result = await response.json();
-      
-      if (response.ok && result.visaProfile) {
-        console.log('Fetched visa profile data:', result.visaProfile);
-        
-        // Capitalize first letter for display
-        const capitalize = (str: string) => str ? str.charAt(0).toUpperCase() + str.slice(1) : 'Not set';
-        
-        // Set SEVIS status
-        setSevisStatus({
-          status: capitalize(result.visaProfile.sevisStatus || 'not set'),
-          lastUpdated: result.visaProfile.lastUpdated 
-            ? new Date(result.visaProfile.lastUpdated).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-            : 'Not available',
-          compliance: capitalize(result.visaProfile.compliance || 'not set'),
-          nextCheck: result.visaProfile.nextCheckDate 
-            ? new Date(result.visaProfile.nextCheckDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-            : 'Not scheduled'
-        });
-
-        // Set Visa status with days remaining calculation
-        let daysRemaining = 0;
-        if (result.visaProfile.expirationDate) {
-          const expirationDate = new Date(result.visaProfile.expirationDate);
-          const today = new Date();
-          const diffTime = expirationDate.getTime() - today.getTime();
-          daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        }
-
-        setVisaStatus({
-          visaType: result.visaProfile.visaType || 'Not set',
-          status: result.visaProfile.status || 'Not set',
-          expirationDate: result.visaProfile.expirationDate 
-            ? new Date(result.visaProfile.expirationDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-            : 'Not set',
-          daysRemaining: result.visaProfile.expirationDate ? daysRemaining : null
-        });
-
-        // Set Passport status with days remaining calculation
-        let passportDaysRemaining = 0;
-        if (result.visaProfile.passportExpirationDate) {
-          const passportExpirationDate = new Date(result.visaProfile.passportExpirationDate);
-          const today = new Date();
-          const diffTime = passportExpirationDate.getTime() - today.getTime();
-          passportDaysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        }
-
-        setPassportStatus({
-          status: result.visaProfile.passportStatus || 'Not set',
-          expirationDate: result.visaProfile.passportExpirationDate 
-            ? new Date(result.visaProfile.passportExpirationDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-            : 'Not set',
-          daysRemaining: result.visaProfile.passportExpirationDate ? passportDaysRemaining : null
-        });
-      } else {
-        // Set default if no data
-        setSevisStatus({
-          status: 'Not set',
-          lastUpdated: 'Not available',
-          compliance: 'Not set',
-          nextCheck: 'Not scheduled'
-        });
-        setVisaStatus({
-          visaType: 'Not set',
-          status: 'Not set',
-          expirationDate: 'Not set',
-          daysRemaining: null
-        });
-        setPassportStatus({
-          status: 'Not set',
-          expirationDate: 'Not set',
-          daysRemaining: null
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching visa profile data:', error);
-      setSevisStatus({
-        status: 'Error loading',
-        lastUpdated: 'Error',
-        compliance: 'Error',
-        nextCheck: 'Error'
-      });
-      setVisaStatus({
-        visaType: 'Error',
-        status: 'Error',
-        expirationDate: 'Error',
-        daysRemaining: null
-      });
-      setPassportStatus({
-        status: 'Error',
-        expirationDate: 'Error',
-        daysRemaining: null
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchMyRequests = async () => {
+  const handleI20RequestSubmit = useCallback(async (requestData: Record<string, unknown>) => {
     try {
-      const token = userData?.data?.session?.access_token || userData?.session?.access_token;
-      
-      console.log('Fetching my requests with token:', token ? 'Token exists' : 'No token');
-      
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-268175b3/requests/my-requests`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token || publicAnonKey}`
-          }
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('Error fetching requests:', error);
-        return;
-      }
-
-      const result = await response.json();
-      console.log('Fetched my requests:', result.requests);
-      
-      // Transform backend requests to display format
-      const transformedRequests = result.requests.map((req: any) => {
-        // Map backend status to display status
-        let displayStatus = req.status;
-        if (req.status === 'pending') displayStatus = 'submitted';
-        else if (req.status === 'info needed') displayStatus = 'needs-info';
-        
-        // Calculate timeline based on status
-        let timeline = [
-          {
-            step: 'Submitted',
-            status: 'completed',
-            date: req.submittedAt?.split('T')[0],
-            note: 'Request received and logged in system'
-          },
-          {
-            step: 'Under Review',
-            status: req.status === 'pending' ? 'current' : req.status === 'approved' || req.status === 'rejected' ? 'completed' : 'current'
-          },
-          {
-            step: 'In Progress',
-            status: req.status === 'approved' ? 'completed' : 'pending'
-          },
-          {
-            step: 'Completed',
-            status: req.status === 'approved' ? 'completed' : 'pending'
-          }
-        ];
-        
-        // If rejected, update timeline
-        if (req.status === 'rejected') {
-          timeline = [
-            {
-              step: 'Submitted',
-              status: 'completed',
-              date: req.submittedAt?.split('T')[0],
-              note: 'Request received and logged in system'
-            },
-            {
-              step: 'Under Review',
-              status: 'completed'
-            },
-            {
-              step: 'Rejected',
-              status: 'current',
-              date: req.processedAt?.split('T')[0],
-              note: req.notes || 'Request was rejected'
-            }
-          ];
-        }
-        
-        return {
-          id: req.id,
-          category: req.requestType,
-          categoryDisplay: req.requestName || req.requestType,
-          requestName: req.requestName,
-          requestType: req.requestType,
-          reason: req.reason,
-          dsoNote: req.notes,
-          status: displayStatus,
-          submittedDate: req.submittedAt?.split('T')[0] || new Date().toISOString().split('T')[0],
-          submittedAt: req.submittedAt,
-          assignedDSO: 'DSO Office',
-          dsoEmail: 'dso@university.edu',
-          timeline,
-          documents: [],
-          comments: req.notes ? [{ from: 'DSO', message: req.notes, date: req.processedAt?.split('T')[0] || '' }] : []
-        };
+      const formData = requestData.formData as Record<string, unknown> ?? {};
+      await submitRequest({
+        requestType: requestData.requestId as string,
+        requestName: requestData.requestName as string,
+        reason: (formData.additionalInfo as string) ?? `Request for ${requestData.requestName}`,
+        formData,
       });
-      
-      setI20Requests(transformedRequests);
-    } catch (error) {
-      console.error('Error fetching requests:', error);
-    }
-  };
-
-  const fetchDSORequests = async () => {
-    try {
-      const token = userData?.data?.session?.access_token || userData?.session?.access_token;
-      
-      console.log('Fetching DSO requests with token:', token ? 'Token exists' : 'No token');
-      
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-268175b3/requests/dso-requests`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token || publicAnonKey}`
-          }
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('Error fetching DSO requests:', error);
-        return;
-      }
-
-      const result = await response.json();
-      console.log('Fetched DSO requests:', result.requests);
-      
-      // Use the backend data directly - it already has the right structure
-      setDsoRequests(result.requests || []);
-    } catch (error) {
-      console.error('Error fetching DSO requests:', error);
-    }
-  };
-
-  const fetchRecentDocuments = async () => {
-    try {
-      const token = userData?.data?.session?.access_token || userData?.session?.access_token;
-      
-      if (!userData?.data?.user?.id) {
-        console.log('No userId available for fetching documents');
-        return;
-      }
-      
-      console.log('Fetching recent documents for user:', userData?.data?.user?.id);
-      
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-268175b3/documents/student/${userData?.data?.user?.id}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token || publicAnonKey}`
-          }
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('Error fetching recent documents:', error);
-        return;
-      }
-
-      const result = await response.json();
-      console.log('Fetched documents:', result.documents);
-      
-      // Sort by upload date and take most recent 3
-      const sortedDocs = (result.documents || [])
-        .sort((a: any, b: any) => new Date(b.uploadedDate).getTime() - new Date(a.uploadedDate).getTime())
-        .slice(0, 3);
-      
-      setRecentDocuments(sortedDocs);
-    } catch (error) {
-      console.error('Error fetching recent documents:', error);
-      setRecentDocuments([]);
-    }
-  };
-
-  // Refresh all dashboard data
-  const refreshDashboard = async () => {
-    setLoading(true);
-    try {
-      await Promise.all([
-        fetchSevisData(),
-        fetchDSORequests(),
-        fetchRecentDocuments()
-      ]);
-      toast.success('Dashboard refreshed', {
-        description: 'All data has been updated'
-      });
-    } catch (error) {
-      console.error('Error refreshing dashboard:', error);
-      toast.error('Failed to refresh dashboard', {
-        description: 'Please try again'
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSubmitRequest = () => {
-    if (requestType && requestDetails.trim()) {
-      // Simulate request submission
-      alert(`Your ${requestType === 'i20' ? 'I-20' : 'OPT'} request has been submitted to your DSO. You'll receive an email confirmation shortly.`);
-      setRequestType(null);
-      setRequestDetails('');
-    }
-  };
-
-  const handleI20RequestSubmit = async (requestData: any) => {
-    try {
-      setLoading(true);
-      
-      const token = userData?.data?.session?.access_token || userData?.session?.access_token;
-      
-      console.log('Submitting request with token:', token ? 'Token exists' : 'No token');
-      
-      // Submit request to backend
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-268175b3/requests/submit`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token || publicAnonKey}`
-        },
-        body: JSON.stringify({
-          requestType: requestData.requestId, // e.g., 'cpt', 'opt', 'travel', etc.
-          requestName: requestData.requestName,
-          reason: requestData.formData.additionalInfo || `Request for ${requestData.requestName}`,
-          formData: requestData.formData,
-          uploadedFiles: Object.keys(requestData.uploadedFiles || {}).map(key => ({
-            field: key,
-            fileName: requestData.uploadedFiles[key]?.name
-          }))
-        })
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to submit request');
-      }
-
-      const result = await response.json();
-      console.log('Request submitted successfully:', result);
-
-      // Fetch updated list of requests from backend
-      await fetchMyRequests();
-      
-      // Navigate to tracker to see the new request
+      await refreshRequests();
       setCurrentView('i20-tracker');
-    } catch (error) {
-      console.error('Error submitting request:', error);
-      alert(`Failed to submit request: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setLoading(false);
-    }
-  };
+    } catch (err) { alert(`Failed to submit request: ${err instanceof Error ? err.message : 'Unknown error'}`); }
+  }, [refreshRequests]);
 
-  const handleRespondToRequest = async () => {
-    if (!respondingToRequest) return;
-    
+  const handleRespondToRequest = useCallback(async (requestId: string, responseData: Record<string, unknown>) => {
     try {
-      setSubmittingResponse(true);
-      const token = userData?.data?.session?.access_token || userData?.session?.access_token;
-      
-      // For confirmation requests, just send the confirmation
-      const responseData: any = {};
-      
-      if (respondingToRequest.type === 'confirmation') {
-        if (!confirmationChecked) {
-          alert('Please confirm by checking the checkbox');
-          return;
-        }
-        responseData.confirmed = true;
-        responseData.confirmedStatement = respondingToRequest.confirmationStatement;
-      }
-      // TODO: Add form and document upload handling
-      
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-268175b3/requests/respond`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            requestActionId: respondingToRequest.id,
-            responseData,
-            documentUrl: null // TODO: Handle file uploads
-          })
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to submit response');
-      }
-
-      const result = await response.json();
-      console.log('Response submitted successfully:', result);
-
-      // Close modal and refresh requests
-      setRespondingToRequest(null);
-      setConfirmationChecked(false);
-      await fetchDSORequests();
-      
-      alert('Response submitted successfully!');
-    } catch (error) {
-      console.error('Error submitting response:', error);
-      alert(`Failed to submit response: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setSubmittingResponse(false);
+      await respondToRequest({ requestId, responseData });
+      await refreshRequests();
+      toast.success('Response submitted to your DSO', { description: 'Your DSO will review your submission shortly.' });
+    } catch (err) {
+      toast.error('Failed to submit response', { description: err instanceof Error ? err.message : 'Please try again' });
+      throw err;
     }
-  };
+  }, [refreshRequests]);
 
-  const NavItems = () => (
-    <>
-      <button onClick={() => setCurrentView('dashboard')} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left ${
-        currentView === 'dashboard' ? 'bg-[#2A73E8]/10 text-[#2A73E8]' : 'text-gray-700 hover:bg-gray-100'
-      } transition-colors`}>
-        <LayoutDashboard className="w-5 h-5" />
-        <span>Dashboard</span>
-      </button>
-      <button onClick={() => setCurrentView('documents')} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left ${
-        currentView === 'documents' ? 'bg-[#2A73E8]/10 text-[#2A73E8]' : 'text-gray-700 hover:bg-gray-100'
-      } transition-colors`}>
-        <FileText className="w-5 h-5" />
-        <span>Documents</span>
-      </button>
-      <button onClick={() => onNavigate('request-center')} className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors w-full text-left">
-        <ClipboardList className="w-5 h-5" />
-        <span>Request Center</span>
-      </button>
-      <button onClick={() => setCurrentView('resources')} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left ${
-        currentView === 'resources' ? 'bg-[#2A73E8]/10 text-[#2A73E8]' : 'text-gray-700 hover:bg-gray-100'
-      } transition-colors`}>
-        <BookOpen className="w-5 h-5" />
-        <span>Resources</span>
-      </button>
-      <button onClick={() => setCurrentView('settings')} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left ${
-        currentView === 'settings' ? 'bg-[#2A73E8]/10 text-[#2A73E8]' : 'text-gray-700 hover:bg-gray-100'
-      } transition-colors`}>
-        <Settings className="w-5 h-5" />
-        <span>Settings</span>
-      </button>
-      <button onClick={() => setCurrentView('ask-lexi')} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left ${
-        currentView === 'ask-lexi' ? 'bg-[#2A73E8]/10 text-[#2A73E8]' : 'text-gray-700 hover:bg-gray-100'
-      } transition-colors`}>
-        <MessageSquare className="w-5 h-5" />
-        <span>Ask Lexi</span>
-      </button>
-      <button onClick={() => setCurrentView('all-requests')} className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left ${
-        currentView === 'all-requests' ? 'bg-[#2A73E8]/10 text-[#2A73E8]' : 'text-gray-700 hover:bg-gray-100'
-      } transition-colors`}>
-        <List className="w-5 h-5" />
-        <span>All Requests</span>
-      </button>
-    </>
-  );
+  // ─── Styles ───────────────────────────────────────────────────────────
+  const sidebarStyle: React.CSSProperties = { width: '220px', background: '#1a1f2e', display: 'flex', flexDirection: 'column', flexShrink: 0, padding: '0 0 16px' };
+  const navItemBase: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', borderRadius: '6px', fontSize: '14px', cursor: 'pointer', transition: 'all 0.15s', marginBottom: '2px', border: 'none', background: 'none', width: '100%', textAlign: 'left', fontFamily: 'inherit' };
+  const navActive: React.CSSProperties = { ...navItemBase, color: '#fff', background: 'rgba(255,255,255,0.08)', fontWeight: 500 };
+  const navInactive: React.CSSProperties = { ...navItemBase, color: '#8b92a5', fontWeight: 400 };
 
-  const documentRequests = [
-    { id: 1, title: 'Enrollment Verification - Fall 2024', dueDate: 'Nov 20, 2024', status: 'Pending' },
-    { id: 2, title: 'Proof of Address', dueDate: 'Nov 25, 2024', status: 'Pending' }
+  // ─── Nav items ────────────────────────────────────────────────────────
+  const NAV_ITEMS: { view: StudentView; icon: React.ReactNode; label: string; badge?: number }[] = [
+    { view: 'dashboard', icon: SVG.dashboard, label: 'Dashboard' },
+    { view: 'settings', icon: SVG.profile, label: 'My Profile' },
+    { view: 'messaging' as StudentView, icon: SVG.messaging, label: 'Messaging', badge: 2 },
+    { view: 'all-requests', icon: SVG.allRequests, label: 'All Requests' },
+    { view: 'i20-request', icon: SVG.requestCenter, label: 'Request Center' },
   ];
 
-  // Conditional rendering based on current view
-  if (currentView === 'documents') {
-    return (
-      <div className="min-h-screen bg-[#F7F9FC]">
-        {/* Navigation */}
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between h-16">
-              <button
-                onClick={() => setCurrentView('dashboard')}
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
-              >
-                <ArrowLeft className="w-5 h-5" />
-                Back to Dashboard
-              </button>
-            </div>
-          </div>
-        </div>
-        <StudentDocumentsPage key="documents" userData={userData} />
-      </div>
-    );
-  }
+  // ─── Sub-view content renderer ────────────────────────────────────────
+  const renderSubViewContent = () => {
+    switch (currentView) {
+      case 'i20-request':
+        return <RequestCenter onBack={() => setCurrentView('dashboard')} onSubmit={handleI20RequestSubmit} />;
+      case 'i20-tracker':
+        return <I20RequestTracker onBack={() => setCurrentView('dashboard')} requests={myRequests as any} onSubmitNewRequest={() => setCurrentView('i20-request')} />;
+      case 'settings':
+        return <SettingsPage onBack={() => setCurrentView('dashboard')} onLogout={onLogout} />;
+      case 'resources':
+        return <ResourcesPage onBack={() => setCurrentView('dashboard')} />;
+      case 'all-requests':
+        return <AllRequestsPage onBack={() => setCurrentView('dashboard')} studentRequests={myRequests} dsoRequests={dsoRequests} onViewStudentRequest={() => setCurrentView('i20-tracker')} onViewDSORequest={(r) => console.log('View DSO request:', r)} />;
+      default:
+        return null;
+    }
+  };
 
-  if (currentView === 'i20-request') {
-    return (
-      <RequestCenter 
-        key="i20-request"
-        onBack={() => setCurrentView('dashboard')} 
-        onSubmit={handleI20RequestSubmit}
-      />
-    );
-  }
+  // ─── Visa helpers ─────────────────────────────────────────────────────
+  const getVisaBadge = () => {
+    if (!visaStatus) return { label: 'Not set', bg: '#f3f4f6', color: '#374151' };
+    if (visaStatus.visaType) return { label: visaStatus.visaType, bg: '#dbeafe', color: '#1d4ed8' };
+    return { label: 'Not set', bg: '#f3f4f6', color: '#374151' };
+  };
+  const getStatusBadge = (status: string) => {
+    if (status === 'Active' || status === 'Valid') return { label: status, bg: '#dcfce7', color: '#166534' };
+    if (status === 'Expiring Soon') return { label: status, bg: '#fef3c7', color: '#92400e' };
+    if (status === 'Expired') return { label: status, bg: '#fee2e2', color: '#991b1b' };
+    if (status === 'Pending Renewal') return { label: status, bg: '#fef3c7', color: '#92400e' };
+    return { label: status || 'Not set', bg: '#f3f4f6', color: '#374151' };
+  };
 
-  if (currentView === 'i20-tracker') {
-    return (
-      <I20RequestTracker 
-        key="i20-tracker"
-        onBack={() => setCurrentView('dashboard')}
-        requests={i20Requests}
-        onSubmitNewRequest={() => setCurrentView('i20-request')}
-      />
-    );
-  }
+  // Helper to get SEVIS status badge config
+  const getSevisBadgeConfig = () => {
+    if (!sevisStatus) return [];
+    const badges: { label: string; bg: string; color: string }[] = [];
+    if (sevisStatus.status) {
+      if (sevisStatus.status === 'Active') badges.push({ label: sevisStatus.status, bg: '#dcfce7', color: '#166534' });
+      else if (sevisStatus.status === 'Terminated') badges.push({ label: sevisStatus.status, bg: '#fee2e2', color: '#991b1b' });
+      else badges.push({ label: sevisStatus.status, bg: '#fef3c7', color: '#92400e' });
+    }
+    if (sevisStatus.compliance) {
+      if (sevisStatus.compliance === 'In Compliance') badges.push({ label: sevisStatus.compliance, bg: '#dcfce7', color: '#166534' });
+      else badges.push({ label: sevisStatus.compliance, bg: '#fef3c7', color: '#92400e' });
+    }
+    return badges;
+  };
 
-  if (currentView === 'settings') {
-    return (
-      <SettingsPage 
-        key="settings"
-        onBack={() => setCurrentView('dashboard')} 
-        onLogout={onLogout}
-      />
-    );
-  }
-
-  if (currentView === 'ask-lexi') {
-    return (
-      <AskLexiPage 
-        key="ask-lexi" 
-        onBack={() => setCurrentView('dashboard')}
-        userName={userName}
-      />
-    );
-  }
-
-  if (currentView === 'resources') {
-    return (
-      <ResourcesPage 
-        key="resources" 
-        onBack={() => setCurrentView('dashboard')}
-      />
-    );
-  }
-
-  if (currentView === 'all-requests') {
-    return (
-      <AllRequestsPage 
-        key="all-requests" 
-        onBack={() => setCurrentView('dashboard')}
-        studentRequests={i20Requests}
-        dsoRequests={dsoRequests}
-        onViewStudentRequest={(request) => {
-          // Navigate to tracker to view full request details
-          setCurrentView('i20-tracker');
-        }}
-        onViewDSORequest={(request) => {
-          // For now, just log - we can add a detailed view later
-          console.log('View DSO request:', request);
-        }}
-      />
-    );
-  }
+  const sevisBadges = getSevisBadgeConfig();
+  const sevisIsAlert = sevisStatus && (sevisStatus.status !== 'Active' || sevisStatus.compliance !== 'In Compliance');
 
   return (
-    <div className="min-h-screen bg-[#F5F6FA] flex">
-      {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 fixed h-full">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-8 h-8 bg-[#2A73E8] rounded-lg flex items-center justify-center">
-              <Globe className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl text-gray-900">Pathly</span>
-          </div>
-          <p className="text-gray-600 mt-2">University Portal</p>
-          <Badge className="mt-2 bg-blue-100 text-blue-800 hover:bg-blue-100">Student</Badge>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
+      {/* ── Sidebar ── */}
+      <aside style={sidebarStyle}>
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '20px 20px 14px', color: '#fff', fontWeight: 600, fontSize: '17px', letterSpacing: '-0.3px' }}>
+          <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>🌐</div>
+          Pathly
         </div>
-        <nav className="flex-1 p-4 space-y-1">
-          <NavItems />
+
+        {/* Student Pill */}
+        <div style={{ margin: '0 14px 18px', display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '8px 12px' }}>
+          <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 600, color: '#fff', flexShrink: 0 }}>{initials}</div>
+          <div>
+            <div style={{ fontSize: '12.5px', fontWeight: 500, color: '#e5e7eb', lineHeight: 1.3 }}>{userName}</div>
+            <div style={{ fontSize: '11px', color: '#6b7280' }}>Student · University Portal</div>
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <nav style={{ flex: 1, padding: '0 10px' }}>
+          {NAV_ITEMS.map(item => (
+            <button key={item.view} onClick={() => setCurrentView(item.view)} style={currentView === item.view ? navActive : navInactive}
+              onMouseEnter={e => currentView !== item.view && (e.currentTarget.style.color = '#fff', e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+              onMouseLeave={e => currentView !== item.view && (e.currentTarget.style.color = '#8b92a5', e.currentTarget.style.background = 'none')}>
+              {item.icon}
+              {item.label}
+              {item.badge && <span style={{ marginLeft: 'auto', background: '#dc2626', color: '#fff', fontSize: '10px', fontWeight: 600, padding: '1px 6px', borderRadius: '10px', minWidth: '18px', textAlign: 'center' }}>{item.badge}</span>}
+            </button>
+          ))}
         </nav>
-        <div className="p-4 border-t border-gray-200">
-          <Button variant="outline" className="w-full" onClick={onLogout}>
+
+        {/* Footer */}
+        <div style={{ padding: '10px 14px 0', borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 'auto' }}>
+          <button onClick={onLogout} style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '8px 10px', borderRadius: '6px', background: 'none', border: 'none', color: '#6b7280', fontSize: '13px', cursor: 'pointer', fontFamily: 'inherit' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#e5e7eb'} onMouseLeave={e => e.currentTarget.style.color = '#6b7280'}>
+            {SVG.logout}
             Log Out
-          </Button>
+          </button>
         </div>
       </aside>
 
-      {/* Mobile Sidebar */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 md:hidden" onClick={() => setSidebarOpen(false)}>
-          <aside className="w-64 bg-white h-full" onClick={(e) => e.stopPropagation()}>
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-8 h-8 bg-[#2A73E8] rounded-lg flex items-center justify-center">
-                    <Globe className="w-5 h-5 text-white" />
-                  </div>
-                  <span className="text-xl text-gray-900">Pathly</span>
-                </div>
-                <p className="text-gray-600 mt-2">University Portal</p>
-                <Badge className="mt-2 bg-blue-100 text-blue-800 hover:bg-blue-100">Student</Badge>
-              </div>
-              <button onClick={() => setSidebarOpen(false)}>
-                <X className="w-6 h-6 text-gray-600" />
-              </button>
+      {/* ── Main ── */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Topbar */}
+        <header style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: '12px', padding: '0 24px', height: '56px', flexShrink: 0 }}>
+          <div style={{ flex: 1, maxWidth: '520px', display: 'flex', alignItems: 'center', gap: '8px', background: '#f4f5f7', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '0 12px', height: '36px' }}>
+            {SVG.search}
+            <input type="text" placeholder="Search requests, documents..." style={{ border: 'none', background: 'transparent', outline: 'none', flex: 1, fontSize: '13.5px', color: '#111827', fontFamily: 'inherit' }} />
+            <span style={{ fontSize: '11px', color: '#9ca3af', background: '#e5e7eb', borderRadius: '4px', padding: '2px 5px', fontFamily: "'DM Mono', monospace" }}>⌘K</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginLeft: 'auto' }}>
+            <div style={{ position: 'relative', width: '36px', height: '36px', borderRadius: '50%', background: '#f4f5f7', border: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              {SVG.bell}
+              <span style={{ position: 'absolute', top: '-2px', right: '-2px', width: '16px', height: '16px', borderRadius: '50%', background: '#dc2626', color: '#fff', fontSize: '10px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #fff' }}>2</span>
             </div>
-            <nav className="p-4 space-y-1">
-              <NavItems />
-            </nav>
-            <div className="p-4 border-t border-gray-200">
-              <Button variant="outline" className="w-full" onClick={onLogout}>
-                Log Out
-              </Button>
-            </div>
-          </aside>
-        </div>
-      )}
-
-      {/* Main Content */}
-      <main className="flex-1 md:ml-64">
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-          <div className="px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <button 
-                className="md:hidden p-2"
-                onClick={() => setSidebarOpen(true)}
-              >
-                <Menu className="w-6 h-6 text-gray-700" />
-              </button>
-              
-              <div className="flex items-center gap-4 ml-auto">
-                <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 hidden md:flex">
-                  👤 {userName}
-                </Badge>
-                <Button variant="ghost" size="sm">
-                  <Bell className="w-5 h-5" />
-                </Button>
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 bg-[#2A73E8] rounded-full flex items-center justify-center text-white">
-                    {userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
-                  </div>
-                  <div className="hidden sm:block">
-                    <p className="text-gray-900">{userName}</p>
-                    <p className="text-gray-500">{userEmail}</p>
-                  </div>
-                </div>
-              </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 10px 4px 4px', border: '1px solid #e5e7eb', borderRadius: '20px', cursor: 'pointer', background: '#f4f5f7', fontSize: '13px', fontWeight: 500 }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '11px', fontWeight: 600 }}>{initials}</div>
+              {userName}
+              {SVG.chevronDown}
             </div>
           </div>
         </header>
 
-        <div className="p-4 sm:p-6 lg:p-8">
-          <div className="max-w-7xl mx-auto">
-            <div className="mb-8">
-              <h1 className="text-gray-900 mb-2">Welcome back, {userName}!</h1>
-              <p className="text-gray-600">Manage your visa status and immigration documents through your university.</p>
-            </div>
+        {/* Content area — sub-views or dashboard */}
+        {currentView !== 'dashboard' ? (
+          /* Sub-views render their own scrollable content */
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            {renderSubViewContent()}
+          </div>
+        ) : (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '26px 28px', display: 'flex', flexDirection: 'column', gap: '18px', background: '#f4f5f7' }}>
 
-            {/* SEVIS Status Card */}
-            <Card className="mb-6 shadow-sm border-0 border-l-4 border-l-green-500">
-              <CardContent className="p-6">
-                {loading ? (
-                  <div className="flex items-center justify-center py-6">
-                    <Loader2 className="w-6 h-6 animate-spin text-[#2A73E8] mr-3" />
-                    <span className="text-gray-600">Loading SEVIS status...</span>
+          {/* Welcome banner */}
+          <div style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #1a1f2e 100%)', borderRadius: '10px', padding: '24px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}>
+            {/* Decorative circles */}
+            <div style={{ position: 'absolute', right: '-40px', top: '-40px', width: '200px', height: '200px', borderRadius: '50%', background: 'rgba(99,102,241,0.15)', pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', right: '60px', bottom: '-60px', width: '160px', height: '160px', borderRadius: '50%', background: 'rgba(59,130,246,0.1)', pointerEvents: 'none' }} />
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              <div style={{ fontSize: '11px', fontWeight: 500, color: '#6366f1', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '6px' }}>University Portal</div>
+              <div style={{ fontSize: '22px', fontWeight: 600, color: '#fff', letterSpacing: '-0.4px', marginBottom: '4px' }}>Welcome back, {userName}</div>
+              <div style={{ fontSize: '13px', color: '#94a3b8' }}>Manage your visa status and immigration documents.</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#94a3b8' }}>
+                  {SVG.profile}
+                  Student ID: <strong style={{ color: '#e2e8f0', fontWeight: 500 }}>{studentId || 'N/A'}</strong>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#94a3b8' }}>
+                  {SVG.passport}
+                  <strong style={{ color: '#e2e8f0', fontWeight: 500 }}>{program || 'Program not set'}{degreeLevel ? ` · ${degreeLevel}` : ''}</strong>
+                </div>
+              </div>
+            </div>
+            <button onClick={refreshDashboard} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '6px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', color: '#e2e8f0', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', position: 'relative', zIndex: 1 }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}>
+              {SVG.refresh}
+              Refresh Status
+            </button>
+          </div>
+
+          {/* SEVIS alert strip */}
+          {sevisStatus && (
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '14px', borderLeft: `3px solid ${sevisIsAlert ? '#dc2626' : '#16a34a'}` }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', flexShrink: 0, background: sevisIsAlert ? '#fee2e2' : '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {sevisIsAlert
+                  ? <svg viewBox="0 0 16 16" fill="none" stroke="#dc2626" strokeWidth="1.6" width="18" height="18"><path d="M8 2L1 14h14L8 2z"/><path d="M8 7v3M8 12v.5"/></svg>
+                  : <svg viewBox="0 0 16 16" fill="none" stroke="#16a34a" strokeWidth="1.6" width="18" height="18"><circle cx="8" cy="8" r="6"/><path d="M5.5 8l2 2 3-3.5"/></svg>
+                }
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#111827', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                  SEVIS Status
+                  {sevisBadges.map((b, i) => (
+                    <span key={i} style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 9px', borderRadius: '20px', fontSize: '11.5px', fontWeight: 500, background: b.bg, color: b.color }}>{b.label}</span>
+                  ))}
+                </div>
+                <div style={{ fontSize: '12.5px', color: '#6b7280' }}>
+                  {sevisIsAlert ? 'Your SEVIS record requires attention. Please contact your DSO immediately.' : 'Your SEVIS record is in good standing.'}
+                </div>
+                <div style={{ display: 'flex', gap: '16px', marginTop: '6px' }}>
+                  {sevisStatus.lastUpdated && (
+                    <div style={{ fontSize: '12px', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {SVG.clock} Last updated: {sevisStatus.lastUpdated}
+                    </div>
+                  )}
+                  {sevisStatus.nextCheckDate && (
+                    <div style={{ fontSize: '12px', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="12" height="12"><rect x="2" y="3" width="12" height="11" rx="1"/><path d="M2 7h12M5 2v2M11 2v2"/></svg>
+                      Next compliance check: {sevisStatus.nextCheckDate}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Status cards row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
+            {/* Visa Status */}
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '18px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {SVG.visa} Visa Status
+                </div>
+                {(() => { const b = getVisaBadge(); return <span style={{ display: 'inline-flex', padding: '2px 9px', borderRadius: '20px', fontSize: '11px', fontWeight: 500, background: b.bg, color: b.color, border: '1px solid #bfdbfe', fontFamily: "'DM Mono', monospace" }}>{b.label}</span>; })()}
+              </div>
+              {loading ? (
+                <div style={{ textAlign: 'center', padding: '16px 0', color: '#9ca3af', fontSize: '13px' }}>Loading...</div>
+              ) : visaStatus ? (
+                <div>
+                  <div style={{ fontSize: '11.5px', color: '#9ca3af', marginBottom: '3px', fontWeight: 500 }}>Time Remaining</div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 600, color: visaStatus.daysRemaining !== null && visaStatus.daysRemaining <= 0 ? '#dc2626' : '#111827', marginBottom: '14px' }}>
+                    {visaStatus.daysRemaining !== null ? (visaStatus.daysRemaining > 0 ? `${visaStatus.daysRemaining} days` : 'Expired') : 'N/A'}
                   </div>
-                ) : (
-                  <div className="flex items-start justify-between flex-wrap gap-4">
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Shield className="w-6 h-6 text-green-600" />
-                      </div>
-                      <div>
-                        <h3 className="text-gray-900 mb-2">SEVIS Status</h3>
-                        {sevisStatus ? (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                                {sevisStatus.status}
-                              </Badge>
-                              <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-                                {sevisStatus.compliance}
-                              </Badge>
-                            </div>
-                            <p className="text-gray-600">Last updated: {sevisStatus.lastUpdated}</p>
-                            <p className="text-gray-600">Next compliance check: {sevisStatus.nextCheck}</p>
-                          </div>
-                        ) : (
-                          <p className="text-gray-600">No SEVIS data available</p>
-                        )}
-                      </div>
+                  <div style={{ height: '5px', background: '#e5e7eb', borderRadius: '3px', marginBottom: '10px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', borderRadius: '3px', background: visaStatus.daysRemaining !== null && visaStatus.daysRemaining <= 0 ? '#dc2626' : visaStatus.daysRemaining !== null && visaStatus.daysRemaining < 90 ? '#d97706' : '#2563eb', width: `${Math.min(100, Math.max(0, ((visaStatus.daysRemaining ?? 0) / 730) * 100))}%` }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                      <span style={{ color: '#9ca3af' }}>Expiration Date</span>
+                      <span style={{ fontWeight: 500, color: visaStatus.daysRemaining !== null && visaStatus.daysRemaining <= 0 ? '#dc2626' : '#111827' }}>{visaStatus.expirationDate}</span>
                     </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="text-[#2A73E8] border-[#2A73E8]"
-                        onClick={refreshDashboard}
-                      >
-                        <Loader2 className="w-4 h-4 mr-1" />
-                        Refresh
-                      </Button>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                      <span style={{ color: '#9ca3af' }}>Visa Type</span>
+                      <span style={{ fontWeight: 500, color: '#111827' }}>{visaStatus.visaType || 'Not set'} Student</span>
                     </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-              {/* Visa Status Card */}
-              <Card className="shadow-sm border-0">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    Visa Status
-                    {loading ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-[#2A73E8]" />
-                    ) : visaStatus ? (
-                      <Badge className={
-                        visaStatus.status === 'Active' ? 'bg-green-100 text-green-800 hover:bg-green-100' :
-                        visaStatus.status === 'Expiring Soon' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100' :
-                        visaStatus.status === 'Pending Renewal' ? 'bg-orange-100 text-orange-800 hover:bg-orange-100' :
-                        'bg-gray-100 text-gray-800 hover:bg-gray-100'
-                      }>
-                        {visaStatus.visaType} {visaStatus.status}
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100">Not set</Badge>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {loading ? (
-                    <div className="flex items-center justify-center py-6">
-                      <Loader2 className="w-5 h-5 animate-spin text-[#2A73E8]" />
-                    </div>
-                  ) : visaStatus ? (
-                    <div className="space-y-4">
-                      {visaStatus.daysRemaining !== null && (
-                        <div>
-                          <div className="flex justify-between mb-2">
-                            <span className="text-gray-600">Time Remaining</span>
-                            <span className={`${
-                              visaStatus.daysRemaining < 90 ? 'text-red-600' :
-                              visaStatus.daysRemaining < 180 ? 'text-yellow-600' :
-                              'text-gray-900'
-                            }`}>
-                              {visaStatus.daysRemaining > 0 
-                                ? `${visaStatus.daysRemaining} days` 
-                                : 'Expired'}
-                            </span>
-                          </div>
-                          <Progress 
-                            value={Math.min(100, Math.max(0, (visaStatus.daysRemaining / 730) * 100))} 
-                            className="h-2" 
-                          />
-                        </div>
-                      )}
-                      <div className={visaStatus.daysRemaining !== null ? "pt-4 border-t border-gray-200" : ""}>
-                        <p className="text-gray-600 mb-1">Expiration Date</p>
-                        <p className="text-gray-900">{visaStatus.expirationDate}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-gray-600 text-center py-4">No visa data available</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Request Center Card */}
-              <Card className="shadow-sm border-0">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Inbox className="w-5 h-5 text-[#2A73E8]" />
-                    Request Center
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Button 
-                    className="w-full justify-start bg-[#2A73E8] hover:bg-[#1557b0] text-white"
-                    onClick={() => setCurrentView('i20-request')}
-                  >
-                    <Inbox className="w-4 h-4 mr-2" />
-                    New DSO Request
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    className="w-full justify-start"
-                    onClick={() => setCurrentView('i20-tracker')}
-                  >
-                    <Eye className="w-4 h-4 mr-2" />
-                    Track My Requests
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Passport Status Card */}
-              <Card className="shadow-sm border-0">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    Passport Status
-                    {loading ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-[#2A73E8]" />
-                    ) : passportStatus ? (
-                      <Badge className={
-                        passportStatus.status === 'Valid' ? 'bg-green-100 text-green-800 hover:bg-green-100' :
-                        passportStatus.status === 'Expiring Soon' ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100' :
-                        passportStatus.status === 'Expired' ? 'bg-red-100 text-red-800 hover:bg-red-100' :
-                        'bg-gray-100 text-gray-800 hover:bg-gray-100'
-                      }>
-                        {passportStatus.status}
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-100">Not set</Badge>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {loading ? (
-                    <div className="flex items-center justify-center py-6">
-                      <Loader2 className="w-5 h-5 animate-spin text-[#2A73E8]" />
-                    </div>
-                  ) : passportStatus ? (
-                    <div className="space-y-4">
-                      {passportStatus.daysRemaining !== null && passportStatus.expirationDate !== 'Not set' && (
-                        <div>
-                          <div className="flex justify-between mb-2">
-                            <span className="text-gray-600">Time Remaining</span>
-                            <span className={`${
-                              passportStatus.daysRemaining < 180 ? 'text-red-600' :
-                              passportStatus.daysRemaining < 365 ? 'text-yellow-600' :
-                              'text-gray-900'
-                            }`}>
-                              {passportStatus.daysRemaining > 0 
-                                ? `${passportStatus.daysRemaining} days` 
-                                : 'Expired'}
-                            </span>
-                          </div>
-                          <Progress 
-                            value={Math.min(100, Math.max(0, (passportStatus.daysRemaining / 1825) * 100))} 
-                            className="h-2" 
-                          />
-                        </div>
-                      )}
-                      <div className={passportStatus.daysRemaining !== null && passportStatus.expirationDate !== 'Not set' ? "pt-4 border-t border-gray-200" : ""}>
-                        <p className="text-gray-600 mb-1">Expiration Date</p>
-                        <p className="text-gray-900">{passportStatus.expirationDate}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-gray-600 text-center py-4">No passport data available</p>
-                  )}
-                </CardContent>
-              </Card>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '16px 0', color: '#9ca3af', fontSize: '13px' }}>No visa data available</div>
+              )}
             </div>
 
-            {/* Requests from DSO - New Component */}
-            <div className="mb-6">
-              <DSORequestsSection 
-                requests={dsoRequests}
-                onViewAllRequests={() => setCurrentView('all-requests')}
-                onRespondSubmit={async (requestId, responseData) => {
-                  try {
-                    const token = userData?.data?.session?.access_token || userData?.session?.access_token;
-                    
-                    const response = await fetch(
-                      `https://${projectId}.supabase.co/functions/v1/make-server-268175b3/requests/respond`,
-                      {
-                        method: 'POST',
-                        headers: {
-                          'Authorization': `Bearer ${token}`,
-                          'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                          requestActionId: requestId,
-                          responseData,
-                          documentUrl: null
-                        })
-                      }
-                    );
-
-                    if (!response.ok) {
-                      const error = await response.json();
-                      throw new Error(error.error || 'Failed to submit response');
-                    }
-
-                    const result = await response.json();
-                    console.log('Response submitted successfully:', result);
-
-                    // Refresh requests
-                    await fetchDSORequests();
-                    
-                    // Show success toast
-                    toast.success('Response submitted to your DSO', {
-                      description: 'Your DSO will review your submission shortly.'
-                    });
-                  } catch (error) {
-                    console.error('Error submitting response:', error);
-                    toast.error('Failed to submit response', {
-                      description: error instanceof Error ? error.message : 'Please try again'
-                    });
-                    throw error;
-                  }
-                }}
-              />
+            {/* Request Center */}
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '18px 20px', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '16px' }}>
+                {SVG.messaging} Request Center
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px', flex: 1, justifyContent: 'center' }}>
+                <button onClick={() => setCurrentView('i20-request')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', width: '100%', padding: '10px 16px', borderRadius: '6px', background: '#2563eb', color: '#fff', border: 'none', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'} onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}>
+                  {SVG.plus} New DSO Request
+                </button>
+                <button onClick={() => setCurrentView('i20-tracker')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', width: '100%', padding: '9px 16px', borderRadius: '6px', background: '#f4f5f7', border: '1px solid #e5e7eb', color: '#111827', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#eaebec'} onMouseLeave={e => e.currentTarget.style.background = '#f4f5f7'}>
+                  {SVG.clock} Track My Requests
+                </button>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Recent Documents */}
-              <Card className="shadow-sm border-0">
-                <CardHeader>
-                  <CardTitle>Recent Documents</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {recentDocuments.length === 0 ? (
-                    <div className="text-center py-8">
-                      <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                        <FileText className="w-6 h-6 text-gray-400" />
-                      </div>
-                      <p className="text-gray-600">
-                        No documents uploaded by DSO. If uploaded, you will see it here.
-                      </p>
+            {/* Passport Status */}
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '18px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '12px', fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  {SVG.passport} Passport Status
+                </div>
+                {passportStatus && (() => { const b = getStatusBadge(passportStatus.status); return <span style={{ display: 'inline-flex', padding: '2px 9px', borderRadius: '20px', fontSize: '11.5px', fontWeight: 500, background: b.bg, color: b.color }}>{b.label}</span>; })()}
+              </div>
+              {loading ? (
+                <div style={{ textAlign: 'center', padding: '16px 0', color: '#9ca3af', fontSize: '13px' }}>Loading...</div>
+              ) : passportStatus ? (
+                <div>
+                  <div style={{ fontSize: '11.5px', color: '#9ca3af', marginBottom: '3px', fontWeight: 500 }}>Time Remaining</div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 600, color: passportStatus.daysRemaining !== null && passportStatus.daysRemaining <= 0 ? '#dc2626' : '#111827', marginBottom: '14px' }}>
+                    {passportStatus.daysRemaining !== null ? (passportStatus.daysRemaining > 0 ? `${passportStatus.daysRemaining} days` : 'Expired') : 'N/A'}
+                  </div>
+                  <div style={{ height: '5px', background: '#e5e7eb', borderRadius: '3px', marginBottom: '10px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', borderRadius: '3px', background: passportStatus.daysRemaining !== null && passportStatus.daysRemaining <= 0 ? '#dc2626' : '#16a34a', width: `${Math.min(100, Math.max(0, ((passportStatus.daysRemaining ?? 0) / 1825) * 100))}%` }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                      <span style={{ color: '#9ca3af' }}>Expiration Date</span>
+                      <span style={{ fontWeight: 500, color: passportStatus.daysRemaining !== null && passportStatus.daysRemaining <= 0 ? '#dc2626' : '#111827' }}>{passportStatus.expirationDate}</span>
                     </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {recentDocuments.map((doc) => {
-                        // Format the date
-                        const formattedDate = doc.uploadedDate 
-                          ? new Date(doc.uploadedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                          : 'Unknown date';
-                        
-                        return (
-                          <div key={doc.id} className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-[#2A73E8]/10 rounded-lg flex items-center justify-center">
-                                <FileText className="w-5 h-5 text-[#2A73E8]" />
-                              </div>
-                              <div>
-                                <p className="text-gray-900">{doc.title || doc.fileName}</p>
-                                <p className="text-gray-500">{formattedDate}</p>
-                              </div>
-                            </div>
-                            <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                              <CheckCircle2 className="w-3 h-3 mr-1" />
-                              Active
-                            </Badge>
-                          </div>
-                        );
-                      })}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                      <span style={{ color: '#9ca3af' }}>Country</span>
+                      <span style={{ fontWeight: 500, color: '#111827' }}>Not set</span>
                     </div>
-                  )}
-                  <Button variant="outline" className="w-full mt-4" onClick={() => setCurrentView('documents')}>
-                    View All Documents
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {/* Recent Requests Submitted */}
-              <Card className="shadow-sm border-0">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <ClipboardList className="w-5 h-5 text-[#2A73E8]" />
-                    Recent Requests Submitted
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {i20Requests.length === 0 ? (
-                    <div className="text-center py-8">
-                      <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-3">
-                        <ClipboardList className="w-6 h-6 text-gray-400" />
-                      </div>
-                      <p className="text-gray-600 mb-4">
-                        No requests submitted yet
-                      </p>
-                      <Button 
-                        className="bg-[#2A73E8] hover:bg-[#1557b0]"
-                        onClick={() => setCurrentView('i20-request')}
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Submit New Request
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {i20Requests.slice(0, 3).map((request) => {
-                        const formattedDate = request.submittedDate 
-                          ? new Date(request.submittedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                          : 'Unknown date';
-                        
-                        return (
-                          <div 
-                            key={request.id} 
-                            className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer"
-                            onClick={() => setCurrentView('i20-tracker')}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-[#2A73E8]/10 rounded-lg flex items-center justify-center">
-                                <FileText className="w-5 h-5 text-[#2A73E8]" />
-                              </div>
-                              <div>
-                                <p className="text-gray-900">{request.requestName || request.categoryDisplay}</p>
-                                <p className="text-gray-500">{formattedDate}</p>
-                              </div>
-                            </div>
-                            <StatusBadge status={request.status} />
-                          </div>
-                        );
-                      })}
-                      <Button 
-                        variant="outline" 
-                        className="w-full mt-4" 
-                        onClick={() => setCurrentView('all-requests')}
-                      >
-                        View All Requests
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '16px 0', color: '#9ca3af', fontSize: '13px' }}>No passport data available</div>
+              )}
             </div>
           </div>
-        </div>
-      </main>
+
+          {/* Bottom grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '16px' }}>
+            {/* DSO Requests */}
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', overflow: 'hidden' }}>
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>Requests from your DSO</span>
+                <a onClick={() => setCurrentView('all-requests')} style={{ fontSize: '12.5px', color: '#2563eb', fontWeight: 500, cursor: 'pointer' }}>View request history</a>
+              </div>
+              <div style={{ padding: '18px' }}>
+                {dsoRequests.length === 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 20px', textAlign: 'center' }}>
+                    <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#f4f5f7', border: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
+                      {SVG.messaging}
+                    </div>
+                    <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#111827', marginBottom: '4px' }}>No requests right now</div>
+                    <div style={{ fontSize: '12.5px', color: '#6b7280', lineHeight: 1.5, maxWidth: '240px' }}>If your DSO needs documents, info, or confirmation, it will appear here.</div>
+                  </div>
+                ) : (
+                  <div>
+                    {dsoRequests.slice(0, 5).map((req: any) => (
+                      <div key={req.id} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #f3f4f6' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: '13px', fontWeight: 500, color: '#111827', marginBottom: '3px' }}>{req.request_name || req.request_type || 'DSO Request'}</div>
+                          <div style={{ fontSize: '11.5px', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {SVG.clock} {formatDate(req.submitted_at || req.created_at)}
+                          </div>
+                        </div>
+                        <StatusBadge status={req.status} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Submit area */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderTop: '1px solid #e5e7eb' }}>
+                <span style={{ fontSize: '12px', color: '#9ca3af' }}>Have something to submit?</span>
+                <button onClick={() => setCurrentView('i20-request')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '6px', background: '#2563eb', color: '#fff', border: 'none', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'} onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}>
+                  {SVG.plus} Submit New Request
+                </button>
+              </div>
+            </div>
+
+            {/* Messaging */}
+            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', overflow: 'hidden' }}>
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>Messaging</span>
+                <a style={{ fontSize: '12.5px', color: '#2563eb', fontWeight: 500, cursor: 'pointer' }}>View all</a>
+              </div>
+              <div style={{ padding: '18px' }}>
+                {/* Sample messages - connected to real data when available */}
+                {[
+                  { from: 'DSO Office', preview: 'Your SEVIS record has been flagged for review. Please contact us as soon as possible.', time: 'Mar 11', color: '#2563eb', unread: true },
+                  { from: 'DSO Office', preview: 'Reminder: Your visa expiration date is approaching. Please schedule an appointment.', time: 'Mar 9', color: '#16a34a', unread: true },
+                  { from: 'DSO Office', preview: 'Welcome to the Pathly portal! Your profile has been set up successfully.', time: 'Feb 20', color: '#6b7280', unread: false },
+                ].map((msg, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '11px 0', borderBottom: i < 2 ? '1px solid #f3f4f6' : 'none' }}>
+                    <div style={{ width: '30px', height: '30px', borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, color: '#fff', background: msg.color }}>DS</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#111827', marginBottom: '2px' }}>{msg.from}</div>
+                      <div style={{ fontSize: '12px', color: '#6b7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{msg.preview}</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0, marginLeft: '8px' }}>
+                      <span style={{ fontSize: '11px', color: '#9ca3af' }}>{msg.time}</span>
+                      {msg.unread && <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#2563eb' }} />}
+                    </div>
+                  </div>
+                ))}
+                <button style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', marginTop: '14px', padding: '9px 14px', borderRadius: '6px', background: '#f4f5f7', border: '1px solid #e5e7eb', fontSize: '13px', fontWeight: 500, cursor: 'pointer', color: '#111827', fontFamily: 'inherit', justifyContent: 'center' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#e9eaec'} onMouseLeave={e => e.currentTarget.style.background = '#f4f5f7'}>
+                  {SVG.messaging} Message your DSO
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>/* /dashboard content */
+        )}
+      </div>{/* /main */}
     </div>
   );
 }

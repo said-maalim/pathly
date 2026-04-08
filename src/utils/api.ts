@@ -21,21 +21,21 @@ async function getAuthHeaders() {
 // ==================== AUTHENTICATION ====================
 
 export async function signUp(email: string, password: string, name: string, userType: 'regular' | 'student' | 'dso' = 'regular') {
-  const endpoint = userType === 'student' 
-    ? '/auth/signup/student' 
-    : userType === 'dso' 
-    ? '/auth/signup/dso' 
-    : '/auth/signup';
-  
+  const endpoint = userType === 'student'
+    ? '/auth/signup/student'
+    : userType === 'dso'
+      ? '/auth/signup/dso'
+      : '/auth/signup';
+
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     method: 'POST',
-    headers: { 
+    headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${publicAnonKey}` // Add auth header with anon key
     },
     body: JSON.stringify({ email, password, name, userType }),
   });
-  
+
   return response.json();
 }
 
@@ -44,11 +44,11 @@ export async function signIn(email: string, password: string) {
     email,
     password,
   });
-  
+
   if (error) {
     return { error: error.message };
   }
-  
+
   return { data, session: data.session };
 }
 
@@ -70,7 +70,7 @@ export async function getUserProfile() {
     method: 'GET',
     headers,
   });
-  
+
   return response.json();
 }
 
@@ -81,7 +81,7 @@ export async function updateUserProfile(updates: any) {
     headers,
     body: JSON.stringify(updates),
   });
-  
+
   return response.json();
 }
 
@@ -93,7 +93,7 @@ export async function getVisaProfile() {
     method: 'GET',
     headers,
   });
-  
+
   return response.json();
 }
 
@@ -104,7 +104,7 @@ export async function updateVisaProfile(updates: any) {
     headers,
     body: JSON.stringify(updates),
   });
-  
+
   return response.json();
 }
 
@@ -112,11 +112,11 @@ export async function updateVisaProfile(updates: any) {
 
 export async function uploadDocument(file: File, documentType: string) {
   const { data: { session } } = await supabase.auth.getSession();
-  
+
   const formData = new FormData();
   formData.append('file', file);
   formData.append('documentType', documentType);
-  
+
   const response = await fetch(`${API_BASE_URL}/documents/upload`, {
     method: 'POST',
     headers: {
@@ -124,7 +124,7 @@ export async function uploadDocument(file: File, documentType: string) {
     },
     body: formData,
   });
-  
+
   return response.json();
 }
 
@@ -134,7 +134,7 @@ export async function getDocuments() {
     method: 'GET',
     headers,
   });
-  
+
   return response.json();
 }
 
@@ -144,7 +144,7 @@ export async function getDocumentDownloadUrl(documentId: string) {
     method: 'GET',
     headers,
   });
-  
+
   return response.json();
 }
 
@@ -157,7 +157,7 @@ export async function submitRequest(requestType: 'i20' | 'opt', reason: string) 
     headers,
     body: JSON.stringify({ requestType, reason }),
   });
-  
+
   return response.json();
 }
 
@@ -167,7 +167,7 @@ export async function getUniversityRequests(universityId: string) {
     method: 'GET',
     headers,
   });
-  
+
   return response.json();
 }
 
@@ -178,7 +178,7 @@ export async function updateRequestStatus(requestId: string, status: string, not
     headers,
     body: JSON.stringify({ status, notes }),
   });
-  
+
   return response.json();
 }
 
@@ -191,7 +191,7 @@ export async function createDocumentRequest(studentId: string, documentType: str
     headers,
     body: JSON.stringify({ studentId, documentType, dueDate, notes }),
   });
-  
+
   return response.json();
 }
 
@@ -201,26 +201,26 @@ export async function getDocumentRequests() {
     method: 'GET',
     headers,
   });
-  
+
   return response.json();
 }
 
 // ==================== SEVIS STATUS ====================
 
 export async function updateSevisStatus(
-  studentId: string, 
-  sevisStatus: string, 
-  compliance: string, 
-  nextCheckDate: string, 
+  studentId: string,
+  sevisStatus: string,
+  compliance: string,
+  nextCheckDate: string,
   notes?: string
 ) {
   const headers = await getAuthHeaders();
-  const response = await fetch(`${API_BASE_URL}/dso/sevis/${studentId}`, {
+  const response = await fetch(`${API_BASE_URL}/students/${studentId}/sevis`, {
     method: 'PUT',
     headers,
     body: JSON.stringify({ sevisStatus, compliance, nextCheckDate, notes }),
   });
-  
+
   return response.json();
 }
 
@@ -233,6 +233,6 @@ export async function sendBulkEmail(recipientGroup: string, subject: string, mes
     headers,
     body: JSON.stringify({ recipientGroup, subject, message }),
   });
-  
+
   return response.json();
 }

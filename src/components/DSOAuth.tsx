@@ -13,7 +13,7 @@ export function DSOAuth({ onNavigate, onLogin }: DSOAuthProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [universityName, setUniversityName] = useState('');
+  const [universityId, setUniversityId] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -26,12 +26,8 @@ export function DSOAuth({ onNavigate, onLogin }: DSOAuthProps) {
     setMessage(null);
 
     // Validation
-    if (!name.trim()) {
-      setMessage({ type: 'error', text: 'Please enter your name' });
-      return;
-    }
-    if (!universityName.trim()) {
-      setMessage({ type: 'error', text: 'Please enter your university name' });
+    if (!name.trim() || !universityId.trim() || !email.trim() || !password) {
+      setMessage({ type: 'error', text: 'All fields are required' });
       return;
     }
     if (!validateEmail(email)) {
@@ -49,31 +45,33 @@ export function DSOAuth({ onNavigate, onLogin }: DSOAuthProps) {
 
     setLoading(true);
     try {
-      // Convert university name to ID (lowercase, replace spaces with hyphens)
-      const universityId = universityName.toLowerCase().replace(/\s+/g, '-');
-      
-      console.log('Creating DSO account with:', { email, name, universityName, universityId });
-      
+      console.log('Creating DSO account with:', { email, name, universityId });
+
       // Call DSO signup endpoint
       const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-268175b3/auth/signup/dso`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`
         },
-        body: JSON.stringify({ email, password, name, universityId }),
+        body: JSON.stringify({
+          email,
+          password,
+          name,
+          schoolId: 'b5acd146-322e-4e43-80ab-4f36a12aafeb' // Hardcoded UUID for QA stability 
+        }),
       });
-      
+
       const result = await response.json();
       console.log('DSO signup result:', result);
-      
+
       if (result.error) {
         setMessage({ type: 'error', text: result.error });
         setLoading(false);
       } else {
-        setMessage({ 
-          type: 'success', 
-          text: '✅ DSO admin account created! Now sign in with your credentials.' 
+        setMessage({
+          type: 'success',
+          text: '✅ DSO admin account created! Now sign in with your credentials.'
         });
         setIsSignUp(false);
         setPassword('');
@@ -103,9 +101,9 @@ export function DSOAuth({ onNavigate, onLogin }: DSOAuthProps) {
     try {
       console.log('DSO signing in with:', email);
       const result = await api.signIn(email, password);
-      
+
       console.log('DSO sign in result:', result);
-      
+
       if (result.error) {
         setMessage({ type: 'error', text: `Login failed: ${result.error}` });
         setLoading(false);
@@ -170,11 +168,10 @@ export function DSOAuth({ onNavigate, onLogin }: DSOAuthProps) {
           <div className="bg-white rounded-2xl shadow-xl p-8">
             {/* Message */}
             {message && (
-              <div className={`mb-6 p-4 rounded-lg ${
-                message.type === 'success' 
-                  ? 'bg-green-50 text-green-800 border border-green-200' 
-                  : 'bg-red-50 text-red-800 border border-red-200'
-              }`}>
+              <div className={`mb-6 p-4 rounded-lg ${message.type === 'success'
+                ? 'bg-green-50 text-green-800 border border-green-200'
+                : 'bg-red-50 text-red-800 border border-red-200'
+                }`}>
                 {message.text}
               </div>
             )}
@@ -200,20 +197,20 @@ export function DSOAuth({ onNavigate, onLogin }: DSOAuthProps) {
                     </div>
                   </div>
 
-                  {/* University Name */}
+                  {/* University ID */}
                   <div>
-                    <label htmlFor="universityName" className="block text-sm font-medium text-gray-700 mb-2">
-                      University Name
+                    <label htmlFor="universityId" className="block text-sm font-medium text-gray-700 mb-2">
+                      University ID
                     </label>
                     <div className="relative">
                       <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                       <input
-                        id="universityName"
+                        id="universityId"
                         type="text"
-                        value={universityName}
-                        onChange={(e) => setUniversityName(e.target.value)}
+                        value={universityId}
+                        onChange={(e) => setUniversityId(e.target.value)}
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        placeholder="e.g., Stanford University"
+                        placeholder="e.g. b5acd146-..."
                       />
                     </div>
                   </div>

@@ -1,31 +1,12 @@
+/**
+ * RequestProcessingView — Request review/detail page refactored to the Pathly
+ * design system (inline styles, DM Sans, #f4f5f7 bg, white surface cards).
+ *
+ * Preserves: renderRequestDetails by type, approve/reject/info-needed handlers,
+ * backend API call, internal notes, message to student, timeline.
+ */
 import { useState } from 'react';
-import {
-  ArrowLeft,
-  User,
-  Mail,
-  Calendar,
-  FileText,
-  Download,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  AlertCircle,
-  MessageSquare,
-  Send,
-  Plus,
-  ExternalLink,
-  Shield,
-  Briefcase,
-  MapPin,
-  Phone
-} from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
-import { Textarea } from './ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Alert, AlertDescription } from './ui/alert';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { apiPut } from '../lib/api-client';
 
 interface RequestProcessingViewProps {
   request: any;
@@ -33,6 +14,31 @@ interface RequestProcessingViewProps {
   onUpdate: (updatedRequest: any) => void;
   userData?: any;
 }
+
+// ── Badge helper ────────────────────────────────────────────────────────────
+function statusStyle(s: string): React.CSSProperties {
+  const m: Record<string, React.CSSProperties> = {
+    New:            { background: '#dbeafe', color: '#1d4ed8' },
+    'Under Review': { background: '#ede9fe', color: '#6d28d9' },
+    'Info Needed':  { background: '#fef9c3', color: '#854d0e' },
+    Approved:       { background: '#dcfce7', color: '#166534' },
+    Rejected:       { background: '#fee2e2', color: '#991b1b' },
+  };
+  return m[s] ?? { background: '#f4f5f7', color: '#6b7280' };
+}
+function priorityStyle(p: string): React.CSSProperties {
+  const m: Record<string, React.CSSProperties> = {
+    Urgent: { background: '#fee2e2', color: '#991b1b' },
+    High:   { background: '#fff7ed', color: '#9a3412' },
+    Normal: { background: '#f4f5f7', color: '#374151' },
+    Low:    { background: '#dbeafe', color: '#1d4ed8' },
+  };
+  return m[p] ?? m.Normal;
+}
+
+const badgeBase: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 500, whiteSpace: 'nowrap',
+};
 
 export function RequestProcessingView({ request, onBack, onUpdate, userData }: RequestProcessingViewProps) {
   const [status, setStatus] = useState(request.status);
@@ -44,43 +50,12 @@ export function RequestProcessingView({ request, onBack, onUpdate, userData }: R
 
   const dsoOfficers = ['Dr. Johnson', 'Dr. Smith', 'Dr. Williams', 'Dr. Brown'];
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'New':
-        return 'bg-blue-100 text-blue-800';
-      case 'Under Review':
-        return 'bg-purple-100 text-purple-800';
-      case 'Info Needed':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'Approved':
-        return 'bg-green-100 text-green-800';
-      case 'Rejected':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
+  const initials = request.studentName?.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) || '??';
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'Urgent':
-        return 'bg-red-100 text-red-800';
-      case 'High':
-        return 'bg-orange-100 text-orange-800';
-      case 'Normal':
-        return 'bg-gray-100 text-gray-800';
-      case 'Low':
-        return 'bg-blue-100 text-blue-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleAddNote = () => {
     if (newNote.trim()) {
-      const timestamp = new Date().toLocaleString();
-      const noteWithTimestamp = `[${timestamp}] ${newNote}`;
-      setInternalNotes([...internalNotes, noteWithTimestamp]);
+      setInternalNotes([...internalNotes, `[${new Date().toLocaleString()}] ${newNote}`]);
       setNewNote('');
     }
   };
@@ -93,702 +68,360 @@ export function RequestProcessingView({ request, onBack, onUpdate, userData }: R
   };
 
   const handleSaveChanges = () => {
-    const updatedRequest = {
-      ...request,
-      status,
-      priority,
-      assignedTo: assignedTo === 'unassigned' ? undefined : assignedTo,
-      internalNotes
-    };
-    onUpdate(updatedRequest);
+    onUpdate({ ...request, status, priority, assignedTo: assignedTo === 'unassigned' ? undefined : assignedTo, internalNotes });
     alert('Request updated successfully!');
+  };
+
+  const updateRequestStatusInBackend = async (u: any) => {
+    await apiPut(`/requests/${u.id}/status`, { status: u.status.toLowerCase(), notes: u.internalNotes?.join('\n') || '' });
   };
 
   const handleApprove = async () => {
     try {
-      const updatedRequest = {
-        ...request,
-        status: 'Approved',
-        priority,
-        assignedTo: assignedTo === 'unassigned' ? undefined : assignedTo,
-        internalNotes: [...internalNotes, `[${new Date().toLocaleString()}] Request approved`]
-      };
-      
-      // Update in backend
-      await updateRequestStatusInBackend(updatedRequest);
-      
-      onUpdate(updatedRequest);
-      setStatus('Approved');
-      alert(`${request.requestType} approved for ${request.studentName}. Student will be notified.`);
-    } catch (error) {
-      alert('Failed to update request status. Please try again.');
-    }
+      const u = { ...request, status: 'Approved', priority, assignedTo: assignedTo === 'unassigned' ? undefined : assignedTo, internalNotes: [...internalNotes, `[${new Date().toLocaleString()}] Request approved`] };
+      await updateRequestStatusInBackend(u);
+      onUpdate(u); setStatus('Approved');
+      alert(`${request.requestType} approved for ${request.studentName}.`);
+    } catch { alert('Failed to update request status.'); }
   };
 
   const handleReject = async () => {
-    if (confirm('Are you sure you want to reject this request? The student will be notified.')) {
-      try {
-        const updatedRequest = {
-          ...request,
-          status: 'Rejected',
-          priority,
-          assignedTo: assignedTo === 'unassigned' ? undefined : assignedTo,
-          internalNotes: [...internalNotes, `[${new Date().toLocaleString()}] Request rejected`]
-        };
-        
-        // Update in backend
-        await updateRequestStatusInBackend(updatedRequest);
-        
-        onUpdate(updatedRequest);
-        setStatus('Rejected');
-        alert('Request rejected. Student will be notified.');
-      } catch (error) {
-        alert('Failed to reject request. Please try again.');
-      }
-    }
+    if (!confirm('Are you sure you want to reject this request?')) return;
+    try {
+      const u = { ...request, status: 'Rejected', priority, assignedTo: assignedTo === 'unassigned' ? undefined : assignedTo, internalNotes: [...internalNotes, `[${new Date().toLocaleString()}] Request rejected`] };
+      await updateRequestStatusInBackend(u);
+      onUpdate(u); setStatus('Rejected');
+      alert('Request rejected.');
+    } catch { alert('Failed to reject request.'); }
   };
 
   const handleRequestMoreInfo = async () => {
     try {
-      const updatedRequest = {
-        ...request,
-        status: 'Info Needed',
-        priority,
-        assignedTo: assignedTo === 'unassigned' ? undefined : assignedTo,
-        internalNotes
-      };
-      
-      // Update in backend
-      await updateRequestStatusInBackend(updatedRequest);
-      
-      onUpdate(updatedRequest);
-      setStatus('Info Needed');
-      alert('Status updated to "Info Needed". Please send a message to the student with specific requirements.');
-    } catch (error) {
-      alert('Failed to update status. Please try again.');
-    }
+      const u = { ...request, status: 'Info Needed', priority, assignedTo: assignedTo === 'unassigned' ? undefined : assignedTo, internalNotes };
+      await updateRequestStatusInBackend(u);
+      onUpdate(u); setStatus('Info Needed');
+      alert('Status updated to "Info Needed".');
+    } catch { alert('Failed to update status.'); }
   };
 
-  const updateRequestStatusInBackend = async (updatedRequest: any) => {
-    try {
-      // Get the session token from userData
-      const token = userData?.data?.session?.access_token || userData?.session?.access_token;
-      
-      if (!token) {
-        console.error('No authentication token available');
-        return;
-      }
-      
-      console.log('Updating request status:', {
-        requestId: updatedRequest.id,
-        newStatus: updatedRequest.status
-      });
-      
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-268175b3/requests/${updatedRequest.id}/status`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            status: updatedRequest.status.toLowerCase(),
-            notes: updatedRequest.internalNotes?.join('\n') || ''
-          })
-        }
-      );
+  // ── Shared styles ─────────────────────────────────────────────────────────
+  const card: React.CSSProperties = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '20px 22px', marginBottom: '14px' };
+  const cardTitle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13.5px', fontWeight: 600, color: '#111827', marginBottom: '18px' };
+  const label: React.CSSProperties = { fontSize: '11.5px', color: '#9ca3af', fontWeight: 500, marginBottom: '4px', textTransform: 'uppercase' as const, letterSpacing: '0.04em' };
+  const value: React.CSSProperties = { fontSize: '13.5px', color: '#111827', fontWeight: 500 };
+  const grid2: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' };
+  const sideCard: React.CSSProperties = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '18px 20px', marginBottom: '14px' };
+  const sideTitle: React.CSSProperties = { fontSize: '13px', fontWeight: 600, color: '#111827', marginBottom: '14px' };
+  const selectStyle: React.CSSProperties = { width: '100%', padding: '8px 12px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', background: '#fff', color: '#111827' };
 
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('Error updating request status:', error);
-        throw new Error(error.error || 'Failed to update request');
-      } else {
-        const result = await response.json();
-        console.log('Request status updated successfully in backend:', result);
-      }
-    } catch (error) {
-      console.error('Error updating request status:', error);
-      throw error;
-    }
-  };
+  // ── Request details renderer ──────────────────────────────────────────────
+  const renderDetails = () => {
+    const d = request.details;
+    if (!d || Object.keys(d).length === 0) return <p style={{ color: '#9ca3af', fontSize: '13px' }}>No additional details provided</p>;
 
-  const renderRequestDetails = () => {
-    const details = request.details;
+    // Generic renderer for all types
+    const fields: { label: string; value: string }[] = [];
+    const formatKey = (k: string) => k.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase()).trim();
 
     switch (request.requestType) {
       case 'CPT Application':
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-gray-600 mb-1">Employer Name</label>
-                <p className="text-gray-900">{details.employerName}</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">Position</label>
-                <p className="text-gray-900">{details.position}</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">Start Date</label>
-                <p className="text-gray-900">{details.startDate}</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">End Date</label>
-                <p className="text-gray-900">{details.endDate}</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">Hours Per Week</label>
-                <p className="text-gray-900">{details.hoursPerWeek} hours</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">Compensation</label>
-                <p className="text-gray-900">{details.isPaid ? `$${details.salary}/hour` : 'Unpaid'}</p>
-              </div>
-            </div>
-            <div>
-              <label className="block text-gray-600 mb-1">Course Relation</label>
-              <p className="text-gray-900">{details.courseRelation}</p>
-            </div>
-          </div>
-        );
-
+        fields.push({ label: 'Employer Name', value: d.employerName }, { label: 'Position', value: d.position }, { label: 'Start Date', value: d.startDate }, { label: 'End Date', value: d.endDate }, { label: 'Hours Per Week', value: `${d.hoursPerWeek} hours` }, { label: 'Compensation', value: d.isPaid ? `$${d.salary}/hour` : 'Unpaid' });
+        break;
       case 'OPT Application':
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-gray-600 mb-1">OPT Type</label>
-                <p className="text-gray-900">{details.optType}</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">Degree Level</label>
-                <p className="text-gray-900">{details.degreeLevel}</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">Major</label>
-                <p className="text-gray-900">{details.major}</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">Graduation Date</label>
-                <p className="text-gray-900">{details.graduationDate}</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">Requested Start Date</label>
-                <p className="text-gray-900">{details.requestedStartDate}</p>
-              </div>
-            </div>
-          </div>
-        );
-
+        fields.push({ label: 'OPT Type', value: d.optType }, { label: 'Degree Level', value: d.degreeLevel }, { label: 'Major', value: d.major }, { label: 'Graduation Date', value: d.graduationDate }, { label: 'Requested Start Date', value: d.requestedStartDate });
+        break;
       case 'Travel Signature':
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-gray-600 mb-1">Destination</label>
-                <p className="text-gray-900">{details.destination || details.travelDestination || 'N/A'}</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">Purpose</label>
-                <p className="text-gray-900">{details.travelReason || details.purpose || 'N/A'}</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">Departure Date</label>
-                <p className="text-gray-900">{details.departureDate || 'N/A'}</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">Return Date</label>
-                <p className="text-gray-900">{details.returnDate || 'N/A'}</p>
-              </div>
-            </div>
-          </div>
-        );
-
+        fields.push({ label: 'Destination', value: d.destination || d.travelDestination || 'N/A' }, { label: 'Purpose', value: d.travelReason || d.purpose || 'N/A' }, { label: 'Departure Date', value: d.departureDate || 'N/A' }, { label: 'Return Date', value: d.returnDate || 'N/A' });
+        break;
       case 'I-20 Replacement':
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-gray-600 mb-1">Reason</label>
-                <p className="text-gray-900">{details.reason}</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">Police Report Filed</label>
-                <p className="text-gray-900">{details.policeReport ? 'Yes' : 'No'}</p>
-              </div>
-            </div>
-            <div>
-              <label className="block text-gray-600 mb-1">Details</label>
-              <p className="text-gray-900">{details.lastKnownLocation}</p>
-            </div>
-          </div>
-        );
-
+        fields.push({ label: 'Reason', value: d.reason }, { label: 'Police Report Filed', value: d.policeReport ? 'Yes' : 'No' }, { label: 'Details', value: d.lastKnownLocation });
+        break;
       case 'Program Extension':
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-gray-600 mb-1">Current Program End</label>
-                <p className="text-gray-900">{details.currentProgramEnd}</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">Requested Extension</label>
-                <p className="text-gray-900">{details.requestedExtensionDate}</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">Reason</label>
-                <p className="text-gray-900">{details.reason}</p>
-              </div>
-            </div>
-            <div>
-              <label className="block text-gray-600 mb-1">Explanation</label>
-              <p className="text-gray-900">{details.explanation}</p>
-            </div>
-          </div>
-        );
-
+        fields.push({ label: 'Current Program End', value: d.currentProgramEnd }, { label: 'Requested Extension', value: d.requestedExtensionDate }, { label: 'Reason', value: d.reason }, { label: 'Explanation', value: d.explanation });
+        break;
       case 'Reduced Course Load':
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-gray-600 mb-1">Current Course Load</label>
-                <p className="text-gray-900">{details.currentCourseLoad} credits</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">Requested Course Load</label>
-                <p className="text-gray-900">{details.requestedCourseLoad} credits</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">Reason</label>
-                <p className="text-gray-900">{details.reason}</p>
-              </div>
-            </div>
-            <div>
-              <label className="block text-gray-600 mb-1">Explanation</label>
-              <p className="text-gray-900">{details.explanation}</p>
-            </div>
-          </div>
-        );
-
+        fields.push({ label: 'Current Course Load', value: `${d.currentCourseLoad} credits` }, { label: 'Requested Course Load', value: `${d.requestedCourseLoad} credits` }, { label: 'Reason', value: d.reason }, { label: 'Explanation', value: d.explanation });
+        break;
       case 'Address Change':
-        return (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-gray-600 mb-1">Previous Address</label>
-              <p className="text-gray-900">{details.previousAddress}</p>
-            </div>
-            <div>
-              <label className="block text-gray-600 mb-1">New Address</label>
-              <p className="text-gray-900">{details.newAddress}</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-gray-600 mb-1">Move Date</label>
-                <p className="text-gray-900">{details.moveDate}</p>
-              </div>
-              <div>
-                <label className="block text-gray-600 mb-1">Phone Number</label>
-                <p className="text-gray-900">{details.phoneNumber}</p>
-              </div>
-            </div>
-          </div>
-        );
-
+        fields.push({ label: 'Previous Address', value: d.previousAddress }, { label: 'New Address', value: d.newAddress }, { label: 'Move Date', value: d.moveDate }, { label: 'Phone Number', value: d.phoneNumber });
+        break;
       case 'Status Clarification':
-        return (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-gray-600 mb-1">Question</label>
-              <p className="text-gray-900">{details.question}</p>
-            </div>
-            <div>
-              <label className="block text-gray-600 mb-1">Situation</label>
-              <p className="text-gray-900">{details.situation}</p>
-            </div>
-          </div>
-        );
-
+        fields.push({ label: 'Question', value: d.question }, { label: 'Situation', value: d.situation });
+        break;
       default:
-        return (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {details && Object.keys(details).length > 0 ? (
-                Object.entries(details).map(([key, value]) => {
-                  // Skip empty or null values
-                  if (!value || value === '') return null;
-                  
-                  // Format the key to be more readable
-                  const formattedKey = key
-                    .replace(/([A-Z])/g, ' $1')
-                    .replace(/^./, str => str.toUpperCase())
-                    .trim();
-                  
-                  return (
-                    <div key={key}>
-                      <label className="block text-gray-600 mb-1">{formattedKey}</label>
-                      <p className="text-gray-900">{typeof value === 'boolean' ? (value ? 'Yes' : 'No') : String(value)}</p>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="col-span-2">
-                  <p className="text-gray-500">No additional details provided</p>
-                </div>
-              )}
-            </div>
-          </div>
-        );
+        Object.entries(d).forEach(([k, v]) => { if (v) fields.push({ label: formatKey(k), value: typeof v === 'boolean' ? (v ? 'Yes' : 'No') : String(v) }); });
     }
+
+    return (
+      <div style={grid2}>
+        {fields.map(f => (
+          <div key={f.label}><div style={label}>{f.label}</div><div style={value}>{f.value || 'N/A'}</div></div>
+        ))}
+      </div>
+    );
   };
 
+  // ── Timeline dots ─────────────────────────────────────────────────────────
+  const dotColor = (s: string) => {
+    const m: Record<string, string> = { New: '#2563eb', 'Under Review': '#7c3aed', Approved: '#16a34a', Rejected: '#dc2626', 'Info Needed': '#d97706' };
+    return m[s] ?? '#d1d5db';
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#F5F6FA] p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <Button 
-            variant="ghost" 
-            onClick={onBack}
-            className="mb-4 -ml-2"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Request List
-          </Button>
+    <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 0, background: '#f4f5f7', fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
 
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-gray-900">{request.requestType}</h1>
-                <Badge variant="outline">{request.id}</Badge>
+      {/* Back + header row */}
+      <div style={{ marginBottom: '22px' }}>
+        <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13.5px', fontWeight: 500, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: '6px 0', marginBottom: '16px' }}
+          onMouseEnter={e => (e.currentTarget.style.color = '#111827')}
+          onMouseLeave={e => (e.currentTarget.style.color = '#6b7280')}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="15" height="15"><path d="M10 3L5 8l5 5"/></svg>
+          Back to Request List
+        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+              <h1 style={{ fontSize: '19px', fontWeight: 600, letterSpacing: '-0.3px', margin: 0 }}>{request.requestType}</h1>
+              <span style={{ fontSize: '11.5px', color: '#9ca3af', background: '#f4f5f7', border: '1px solid #e5e7eb', padding: '2px 8px', borderRadius: '4px', fontFamily: "'DM Mono', monospace" }}>
+                {request.id.length > 12 ? request.id.slice(0, 8) + '…' : request.id}
+              </span>
+            </div>
+            <p style={{ fontSize: '13px', color: '#6b7280' }}>{request.category}</p>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ ...badgeBase, ...statusStyle(status), fontSize: '13px', padding: '5px 14px' }}>{status}</span>
+            <span style={{ ...badgeBase, ...priorityStyle(priority), fontSize: '13px', padding: '5px 14px' }}>{priority}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Two-column grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '16px', alignItems: 'start' }}>
+
+        {/* ── LEFT: info cards ── */}
+        <div>
+
+          {/* Student Information */}
+          <div style={card}>
+            <div style={cardTitle}>
+              <svg viewBox="0 0 16 16" fill="none" stroke="#2563eb" strokeWidth="1.5" width="15" height="15"><circle cx="8" cy="5" r="2.5"/><path d="M3 13c0-3 10-3 10 0"/></svg>
+              Student Information
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '14px' }}>
+              <div style={{ width: '46px', height: '46px', borderRadius: '50%', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '15px', fontWeight: 600, flexShrink: 0 }}>
+                {initials}
               </div>
-              <p className="text-gray-600">{request.category}</p>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 600 }}>{request.studentName}</div>
+                <div style={{ fontSize: '13px', color: '#6b7280' }}>{request.studentEmail}</div>
+              </div>
             </div>
+            <div style={{ display: 'flex', gap: '20px', paddingTop: '12px', borderTop: '1px solid #f3f4f6', fontSize: '12.5px', color: '#6b7280' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <svg viewBox="0 0 14 14" fill="none" stroke="#9ca3af" strokeWidth="1.3" width="13" height="13"><circle cx="7" cy="7" r="5.5"/><path d="M5 7l1.5 1.5 3-3"/></svg>
+                ID: {request.studentId ? (request.studentId.length > 12 ? request.studentId.slice(0, 8) + '…' : request.studentId) : 'N/A'}
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <svg viewBox="0 0 14 14" fill="none" stroke="#9ca3af" strokeWidth="1.3" width="13" height="13"><rect x="1" y="3" width="12" height="8" rx="1"/><path d="M1 5.5h12"/></svg>
+                F-1 Visa
+              </span>
+            </div>
+          </div>
 
-            <div className="flex gap-2">
-              <Badge className={getStatusColor(status)} style={{ fontSize: '14px', padding: '6px 12px' }}>
-                {status}
-              </Badge>
-              <Badge className={getPriorityColor(priority)} style={{ fontSize: '14px', padding: '6px 12px' }}>
-                {priority}
-              </Badge>
+          {/* Request Details */}
+          <div style={card}>
+            <div style={cardTitle}>
+              <svg viewBox="0 0 16 16" fill="none" stroke="#2563eb" strokeWidth="1.5" width="15" height="15"><rect x="3" y="2" width="10" height="12" rx="1.5"/><path d="M6 5h4M6 8h4M6 11h2"/></svg>
+              Request Details
             </div>
+            {renderDetails()}
+          </div>
+
+          {/* Attached Documents */}
+          {request.documents && request.documents.length > 0 && (
+            <div style={card}>
+              <div style={cardTitle}>
+                <svg viewBox="0 0 16 16" fill="none" stroke="#2563eb" strokeWidth="1.5" width="15" height="15"><path d="M9 2H5a1 1 0 00-1 1v10a1 1 0 001 1h6a1 1 0 001-1V5L9 2z"/><path d="M9 2v3h3"/></svg>
+                Attached Documents ({request.documents.length})
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {request.documents.map((doc: any, i: number) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', border: '1px solid #e5e7eb', borderRadius: '8px', transition: 'border-color 0.15s' }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = '#2563eb')}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = '#e5e7eb')}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <svg viewBox="0 0 14 14" fill="none" stroke="#9ca3af" strokeWidth="1.3" width="14" height="14"><path d="M8 1H4a1 1 0 00-1 1v10a1 1 0 001 1h6a1 1 0 001-1V4L8 1z"/><path d="M8 1v3h3"/></svg>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{doc.name}</div>
+                        <div style={{ fontSize: '11.5px', color: '#9ca3af' }}>{doc.size} • Uploaded {doc.uploadDate}</div>
+                      </div>
+                    </div>
+                    <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', padding: '4px' }}>
+                      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" width="14" height="14"><path d="M7 2v7M4 6l3 3 3-3M2 11h10"/></svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Internal Notes */}
+          <div style={card}>
+            <div style={cardTitle}>
+              <svg viewBox="0 0 16 16" fill="none" stroke="#2563eb" strokeWidth="1.5" width="15" height="15"><path d="M2 3h12v8a1 1 0 01-1 1H7l-3 2v-2H3a1 1 0 01-1-1V3z"/></svg>
+              Internal Notes (DSO Only)
+            </div>
+            {internalNotes.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '14px' }}>
+                {internalNotes.map((note, i) => (
+                  <div key={i} style={{ padding: '10px 14px', background: '#fefce8', border: '1px solid #fde68a', borderRadius: '8px', fontSize: '13px', color: '#374151', whiteSpace: 'pre-wrap' }}>
+                    {note}
+                  </div>
+                ))}
+              </div>
+            )}
+            <textarea
+              placeholder="Add an internal note (visible only to DSO staff)..."
+              value={newNote}
+              onChange={e => setNewNote(e.target.value)}
+              rows={3}
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', color: '#111827', marginBottom: '10px' }}
+            />
+            <button onClick={handleAddNote} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px', borderRadius: '6px', border: '1px solid #e5e7eb', background: '#fff', fontSize: '13px', fontWeight: 500, cursor: 'pointer', color: '#111827', fontFamily: 'inherit' }}>
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" width="13" height="13"><path d="M7 2v10M2 7h10"/></svg>
+              Add Note
+            </button>
+          </div>
+
+          {/* Message Student */}
+          <div style={{ ...card, marginBottom: 0 }}>
+            <div style={cardTitle}>
+              <svg viewBox="0 0 16 16" fill="none" stroke="#2563eb" strokeWidth="1.5" width="15" height="15"><path d="M2 3h12v8a1 1 0 01-1 1H3a1 1 0 01-1-1V3zm0 0l6 5 6-5"/></svg>
+              Message Student
+            </div>
+            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '10px 14px', fontSize: '12.5px', color: '#1d4ed8', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" width="13" height="13"><circle cx="7" cy="7" r="5.5"/><path d="M7 5v3M7 9.5v.5"/></svg>
+              This message will be sent to {request.studentEmail}
+            </div>
+            <textarea
+              placeholder="Type your message to the student..."
+              value={messageToStudent}
+              onChange={e => setMessageToStudent(e.target.value)}
+              rows={4}
+              style={{ width: '100%', padding: '10px 12px', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '13px', fontFamily: 'inherit', resize: 'vertical', color: '#111827', marginBottom: '10px' }}
+            />
+            <button onClick={handleSendMessage} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 18px', borderRadius: '6px', background: '#2563eb', color: '#fff', border: 'none', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#1d4ed8')}
+              onMouseLeave={e => (e.currentTarget.style.background = '#2563eb')}
+            >
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" width="13" height="13"><path d="M1 7l12-5-4 12-3-5-5-2z"/></svg>
+              Send Message
+            </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Student Information */}
-            <Card className="shadow-sm border-0">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="w-5 h-5 text-[#2A73E8]" />
-                  Student Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-[#2A73E8] rounded-full flex items-center justify-center text-white">
-                      {request.studentName.split(' ').map((n: string) => n[0]).join('')}
-                    </div>
-                    <div>
-                      <p className="text-gray-900">{request.studentName}</p>
-                      <p className="text-gray-500">{request.studentEmail}</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Shield className="w-4 h-4" />
-                      <span>Student ID: {request.studentId}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Calendar className="w-4 h-4" />
-                      <span>F-1 Visa</span>
-                    </div>
-                  </div>
-                  <Button variant="outline" size="sm" className="w-full mt-2">
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    View Full Student Profile
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+        {/* ── RIGHT: sidebar ── */}
+        <div>
 
-            {/* Request Details */}
-            <Card className="shadow-sm border-0">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-[#2A73E8]" />
-                  Request Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {renderRequestDetails()}
-              </CardContent>
-            </Card>
-
-            {/* Attached Documents */}
-            {request.documents.length > 0 && (
-              <Card className="shadow-sm border-0">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-[#2A73E8]" />
-                    Attached Documents ({request.documents.length})
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {request.documents.map((doc: any, idx: number) => (
-                      <div key={idx} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:border-[#2A73E8] transition-colors">
-                        <div className="flex items-center gap-3">
-                          <FileText className="w-5 h-5 text-gray-400" />
-                          <div>
-                            <p className="text-gray-900">{doc.name}</p>
-                            <p className="text-gray-500">{doc.size} • Uploaded {doc.uploadDate}</p>
-                          </div>
-                        </div>
-                        <Button variant="ghost" size="sm">
-                          <Download className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Internal Notes */}
-            <Card className="shadow-sm border-0">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5 text-[#2A73E8]" />
-                  Internal Notes (DSO Only)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {internalNotes.length > 0 && (
-                    <div className="space-y-2 mb-4">
-                      {internalNotes.map((note, idx) => (
-                        <div key={idx} className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                          <p className="text-gray-700 whitespace-pre-wrap">{note}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  <div className="space-y-2">
-                    <Textarea
-                      placeholder="Add an internal note (visible only to DSO staff)..."
-                      value={newNote}
-                      onChange={(e) => setNewNote(e.target.value)}
-                      className="min-h-24"
-                    />
-                    <Button onClick={handleAddNote} variant="outline" size="sm">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Note
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Message Student */}
-            <Card className="shadow-sm border-0">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Mail className="w-5 h-5 text-[#2A73E8]" />
-                  Message Student
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <Alert>
-                    <AlertCircle className="w-4 h-4" />
-                    <AlertDescription>
-                      This message will be sent to {request.studentEmail}
-                    </AlertDescription>
-                  </Alert>
-                  
-                  <Textarea
-                    placeholder="Type your message to the student..."
-                    value={messageToStudent}
-                    onChange={(e) => setMessageToStudent(e.target.value)}
-                    className="min-h-32"
-                  />
-                  
-                  <Button onClick={handleSendMessage} className="bg-[#2A73E8] hover:bg-[#1557b0]">
-                    <Send className="w-4 h-4 mr-2" />
-                    Send Message
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+          {/* Quick Actions */}
+          <div style={sideCard}>
+            <div style={sideTitle}>Quick Actions</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button onClick={handleApprove} disabled={status === 'Approved'} style={{ width: '100%', padding: '9px 14px', borderRadius: '6px', background: status === 'Approved' ? '#d1d5db' : '#16a34a', color: '#fff', border: 'none', fontSize: '13px', fontWeight: 500, cursor: status === 'Approved' ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" width="14" height="14"><circle cx="7" cy="7" r="5.5"/><path d="M5 7l1.5 1.5 3-3"/></svg>
+                Approve Request
+              </button>
+              <button onClick={handleRequestMoreInfo} style={{ width: '100%', padding: '9px 14px', borderRadius: '6px', background: '#fff', color: '#d97706', border: '1px solid #fbbf24', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" width="14" height="14"><circle cx="7" cy="7" r="5.5"/><path d="M7 5v3M7 9.5v.5"/></svg>
+                Request More Info
+              </button>
+              <button onClick={handleReject} disabled={status === 'Rejected'} style={{ width: '100%', padding: '9px 14px', borderRadius: '6px', background: '#fff', color: status === 'Rejected' ? '#d1d5db' : '#dc2626', border: `1px solid ${status === 'Rejected' ? '#d1d5db' : '#fca5a5'}`, fontSize: '13px', fontWeight: 500, cursor: status === 'Rejected' ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" width="14" height="14"><circle cx="7" cy="7" r="5.5"/><path d="M5 5l4 4M9 5l-4 4"/></svg>
+                Reject Request
+              </button>
+            </div>
           </div>
 
-          {/* Right Column - Actions & Status */}
-          <div className="space-y-6">
-            {/* Quick Actions */}
-            <Card className="shadow-sm border-0">
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Button 
-                  className="w-full bg-green-600 hover:bg-green-700"
-                  onClick={handleApprove}
-                  disabled={status === 'Approved'}
-                >
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Approve Request
-                </Button>
-                
-                <Button 
-                  variant="outline" 
-                  className="w-full border-yellow-500 text-yellow-700 hover:bg-yellow-50"
-                  onClick={handleRequestMoreInfo}
-                >
-                  <AlertCircle className="w-4 h-4 mr-2" />
-                  Request More Info
-                </Button>
-                
-                <Button 
-                  variant="outline" 
-                  className="w-full border-red-500 text-red-700 hover:bg-red-50"
-                  onClick={handleReject}
-                  disabled={status === 'Rejected'}
-                >
-                  <XCircle className="w-4 h-4 mr-2" />
-                  Reject Request
-                </Button>
-              </CardContent>
-            </Card>
+          {/* Update Request */}
+          <div style={sideCard}>
+            <div style={sideTitle}>Update Request</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Status</div>
+                <select value={status} onChange={e => setStatus(e.target.value)} style={selectStyle}>
+                  <option value="New">New</option>
+                  <option value="Under Review">Under Review</option>
+                  <option value="Info Needed">Info Needed</option>
+                  <option value="Approved">Approved</option>
+                  <option value="Rejected">Rejected</option>
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Priority</div>
+                <select value={priority} onChange={e => setPriority(e.target.value)} style={selectStyle}>
+                  <option value="Urgent">Urgent</option>
+                  <option value="High">High</option>
+                  <option value="Normal">Normal</option>
+                  <option value="Low">Low</option>
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Assign To</div>
+                <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)} style={selectStyle}>
+                  <option value="unassigned">Unassigned</option>
+                  {dsoOfficers.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              <button onClick={handleSaveChanges} style={{ width: '100%', padding: '9px 14px', borderRadius: '6px', background: '#2563eb', color: '#fff', border: 'none', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#1d4ed8')}
+                onMouseLeave={e => (e.currentTarget.style.background = '#2563eb')}
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
 
-            {/* Update Status */}
-            <Card className="shadow-sm border-0">
-              <CardHeader>
-                <CardTitle>Update Request</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="block text-gray-700 mb-2">Status</label>
-                  <Select value={status} onValueChange={setStatus}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="New">New</SelectItem>
-                      <SelectItem value="Under Review">Under Review</SelectItem>
-                      <SelectItem value="Info Needed">Info Needed</SelectItem>
-                      <SelectItem value="Approved">Approved</SelectItem>
-                      <SelectItem value="Rejected">Rejected</SelectItem>
-                    </SelectContent>
-                  </Select>
+          {/* Timeline */}
+          <div style={{ ...sideCard, marginBottom: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', ...sideTitle }}>
+              <svg viewBox="0 0 14 14" fill="none" stroke="#2563eb" strokeWidth="1.5" width="14" height="14"><circle cx="7" cy="7" r="5.5"/><path d="M7 4v3l2 2"/></svg>
+              Timeline
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {/* Submitted */}
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2563eb', marginTop: '5px', flexShrink: 0 }} />
+                <div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>Request Submitted</div><div style={{ fontSize: '12px', color: '#9ca3af' }}>{request.submittedDate}</div></div>
+              </div>
+              {/* Current Status */}
+              {(status === 'Under Review' || status === 'Info Needed') && (
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: dotColor(status), marginTop: '5px', flexShrink: 0 }} />
+                  <div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{status}</div><div style={{ fontSize: '12px', color: '#9ca3af' }}>Current Status</div></div>
                 </div>
-
-                <div>
-                  <label className="block text-gray-700 mb-2">Priority</label>
-                  <Select value={priority} onValueChange={setPriority}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Urgent">Urgent</SelectItem>
-                      <SelectItem value="High">High</SelectItem>
-                      <SelectItem value="Normal">Normal</SelectItem>
-                      <SelectItem value="Low">Low</SelectItem>
-                    </SelectContent>
-                  </Select>
+              )}
+              {status === 'Approved' && (
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#16a34a', marginTop: '5px', flexShrink: 0 }} />
+                  <div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>Approved</div><div style={{ fontSize: '12px', color: '#9ca3af' }}>Request approved</div></div>
                 </div>
-
-                <div>
-                  <label className="block text-gray-700 mb-2">Assign To</label>
-                  <Select value={assignedTo} onValueChange={setAssignedTo}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="unassigned">Unassigned</SelectItem>
-                      {dsoOfficers.map((officer) => (
-                        <SelectItem key={officer} value={officer}>
-                          {officer}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              )}
+              {status === 'Rejected' && (
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#dc2626', marginTop: '5px', flexShrink: 0 }} />
+                  <div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>Rejected</div><div style={{ fontSize: '12px', color: '#9ca3af' }}>Request rejected</div></div>
                 </div>
-
-                <Button 
-                  className="w-full bg-[#2A73E8] hover:bg-[#1557b0]"
-                  onClick={handleSaveChanges}
-                >
-                  Save Changes
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* Timeline */}
-            <Card className="shadow-sm border-0">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-[#2A73E8]" />
-                  Timeline
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex gap-3">
-                    <div className="w-2 h-2 rounded-full bg-blue-500 mt-2"></div>
-                    <div>
-                      <p className="text-gray-900">Request Submitted</p>
-                      <p className="text-gray-500">{request.submittedDate}</p>
-                    </div>
-                  </div>
-                  
-                  {status === 'Under Review' && (
-                    <div className="flex gap-3">
-                      <div className="w-2 h-2 rounded-full bg-purple-500 mt-2"></div>
-                      <div>
-                        <p className="text-gray-900">Under Review</p>
-                        <p className="text-gray-500">Current Status</p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {status === 'Approved' && (
-                    <div className="flex gap-3">
-                      <div className="w-2 h-2 rounded-full bg-green-500 mt-2"></div>
-                      <div>
-                        <p className="text-gray-900">Approved</p>
-                        <p className="text-gray-500">Request approved</p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {status === 'Rejected' && (
-                    <div className="flex gap-3">
-                      <div className="w-2 h-2 rounded-full bg-red-500 mt-2"></div>
-                      <div>
-                        <p className="text-gray-900">Rejected</p>
-                        <p className="text-gray-500">Request rejected</p>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex gap-3">
-                    <div className="w-2 h-2 rounded-full bg-gray-300 mt-2"></div>
-                    <div>
-                      <p className="text-gray-500">Due Date</p>
-                      <p className="text-gray-500">{request.dueDate}</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              )}
+              {/* Due date */}
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#d1d5db', marginTop: '5px', flexShrink: 0 }} />
+                <div><div style={{ fontSize: '13px', fontWeight: 500, color: '#6b7280' }}>Due Date</div><div style={{ fontSize: '12px', color: '#9ca3af' }}>{request.dueDate}</div></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

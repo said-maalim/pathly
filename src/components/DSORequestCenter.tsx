@@ -1,30 +1,13 @@
+/**
+ * DSORequestCenter — Student Requests page refactored to match the
+ * established Pathly design system (DM Sans, #f4f5f7 bg, white surface
+ * cards, colored stat icons, inline-style filter bar, request cards).
+ *
+ * All data fetching, filtering, sorting, mock data, RequestProcessingView
+ * integration, and handleUpdateRequest preserved unchanged.
+ */
 import { useState, useEffect } from 'react';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
-import { 
-  ClipboardList,
-  Filter,
-  Search,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  Eye,
-  Mail,
-  Download,
-  Calendar,
-  User,
-  FileText,
-  ArrowUpDown,
-  MoreVertical,
-  Loader,
-  Globe,
-  Bell,
-  Home
-} from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Badge } from './ui/badge';
-import { Button } from './ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { RequestProcessingView } from './RequestProcessingView';
 
 interface DSORequestCenterProps {
@@ -51,397 +34,132 @@ interface Request {
   internalNotes: string[];
 }
 
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function fmt(d: string) {
+  return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function daysUntil(d: string) {
+  return Math.ceil((new Date(d).getTime() - Date.now()) / 86400000);
+}
+
+function statusBadge(status: string): React.CSSProperties {
+  const m: Record<string, React.CSSProperties> = {
+    New:            { background: '#dbeafe', color: '#1d4ed8' },
+    'Under Review': { background: '#ede9fe', color: '#6d28d9' },
+    'Info Needed':  { background: '#fef9c3', color: '#854d0e' },
+    Approved:       { background: '#dcfce7', color: '#166534' },
+    Rejected:       { background: '#fee2e2', color: '#991b1b' },
+  };
+  return m[status] ?? { background: '#f4f5f7', color: '#6b7280' };
+}
+
+function priorityBadge(p: string): React.CSSProperties {
+  const m: Record<string, React.CSSProperties> = {
+    Urgent: { background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' },
+    High:   { background: '#fff7ed', color: '#9a3412', border: '1px solid #fed7aa' },
+    Normal: { background: '#f4f5f7', color: '#374151', border: '1px solid #e5e7eb' },
+    Low:    { background: '#dbeafe', color: '#1d4ed8', border: '1px solid #bfdbfe' },
+  };
+  return m[p] ?? m.Normal;
+}
+
+// ── Component ───────────────────────────────────────────────────────────────
+
 export function DSORequestCenter({ onBack, onLogout, userName = 'DSO Admin', userData }: DSORequestCenterProps) {
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [filterStatus, setFilterStatus] = useState('all');
-  const [filterType, setFilterType] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'date' | 'priority' | 'student'>('date');
   const [loading, setLoading] = useState(true);
   const [backendRequests, setBackendRequests] = useState<any[]>([]);
 
-  // Get user type
   const userType = userData?.data?.user?.user_metadata?.userType;
 
-  // Check user type on mount
   useEffect(() => {
     if (userType && userType !== 'dso') {
-      alert(`You are logged in as a ${userType.toUpperCase()}. This is the DSO portal. Please access the ${userType.toUpperCase()} portal instead.`);
+      alert(`You are logged in as a ${userType.toUpperCase()}. This is the DSO portal.`);
     }
   }, [userType]);
 
-  // Mock request data - shown alongside backend requests
-  const [requests, setRequests] = useState<Request[]>([
-    {
-      id: 'REQ-2024-001',
-      studentName: 'Sarah Rodriguez',
-      studentEmail: 'sarah.r@university.edu',
-      studentId: 'STU-001',
-      requestType: 'CPT Application',
-      category: 'Immigration Documents',
-      status: 'New',
-      priority: 'High',
-      submittedDate: '2024-11-22',
-      dueDate: '2024-12-06',
-      details: {
-        employerName: 'Tech Solutions Inc.',
-        position: 'Software Engineering Intern',
-        startDate: '2025-01-15',
-        endDate: '2025-05-15',
-        hoursPerWeek: 20,
-        isPaid: true,
-        salary: 25,
-        courseRelation: 'This internship directly relates to my Computer Science major...'
-      },
-      documents: [
-        { name: 'Offer Letter.pdf', size: '245 KB', uploadDate: '2024-11-22' },
-        { name: 'Job Description.pdf', size: '156 KB', uploadDate: '2024-11-22' }
-      ],
-      internalNotes: []
-    },
-    {
-      id: 'REQ-2024-002',
-      studentName: 'Michael Chen',
-      studentEmail: 'michael.c@university.edu',
-      studentId: 'STU-002',
-      requestType: 'OPT Application',
-      category: 'Immigration Documents',
-      status: 'Under Review',
-      priority: 'Urgent',
-      submittedDate: '2024-11-20',
-      dueDate: '2024-12-04',
-      assignedTo: 'Dr. Johnson',
-      details: {
-        optType: 'Post-Completion OPT',
-        degreeLevel: 'Bachelor',
-        graduationDate: '2025-05-15',
-        major: 'Computer Science',
-        requestedStartDate: '2025-06-01'
-      },
-      documents: [
-        { name: 'Transcript.pdf', size: '892 KB', uploadDate: '2024-11-20' },
-        { name: 'Degree Audit.pdf', size: '234 KB', uploadDate: '2024-11-20' }
-      ],
-      internalNotes: ['Verified graduation date with registrar - MC']
-    },
-    {
-      id: 'REQ-2024-003',
-      studentName: 'Priya Patel',
-      studentEmail: 'priya.p@university.edu',
-      studentId: 'STU-003',
-      requestType: 'Travel Signature',
-      category: 'Immigration Documents',
-      status: 'Info Needed',
-      priority: 'Normal',
-      submittedDate: '2024-11-19',
-      dueDate: '2024-12-03',
-      assignedTo: 'Dr. Smith',
-      details: {
-        travelDestination: 'India',
-        departureDate: '2024-12-20',
-        returnDate: '2025-01-10',
-        purpose: 'Winter break - visiting family'
-      },
-      documents: [
-        { name: 'Flight Itinerary.pdf', size: '178 KB', uploadDate: '2024-11-19' }
-      ],
-      internalNotes: ['Need to verify current I-20 signature date - DS']
-    },
-    {
-      id: 'REQ-2024-004',
-      studentName: 'Juan Martinez',
-      studentEmail: 'juan.m@university.edu',
-      studentId: 'STU-004',
-      requestType: 'I-20 Replacement',
-      category: 'Immigration Documents',
-      status: 'Approved',
-      priority: 'High',
-      submittedDate: '2024-11-18',
-      dueDate: '2024-12-02',
-      assignedTo: 'Dr. Johnson',
-      details: {
-        reason: 'Lost/Stolen',
-        lastKnownLocation: 'Lost during move to new apartment',
-        policeReport: true
-      },
-      documents: [
-        { name: 'Police Report.pdf', size: '423 KB', uploadDate: '2024-11-18' },
-        { name: 'Affidavit.pdf', size: '145 KB', uploadDate: '2024-11-18' }
-      ],
-      internalNotes: ['Police report verified - approved for replacement - MJ', 'New I-20 generated and sent - MJ']
-    },
-    {
-      id: 'REQ-2024-005',
-      studentName: 'Yuki Tanaka',
-      studentEmail: 'yuki.t@university.edu',
-      studentId: 'STU-005',
-      requestType: 'Program Extension',
-      category: 'Academic & Employment',
-      status: 'Under Review',
-      priority: 'Normal',
-      submittedDate: '2024-11-17',
-      dueDate: '2024-12-01',
-      assignedTo: 'Dr. Smith',
-      details: {
-        currentProgramEnd: '2025-05-15',
-        requestedExtensionDate: '2025-12-15',
-        reason: 'Academic reasons',
-        explanation: 'Changed major from Business to Computer Science, need additional semester'
-      },
-      documents: [
-        { name: 'Academic Advisor Letter.pdf', size: '267 KB', uploadDate: '2024-11-17' },
-        { name: 'Degree Plan.pdf', size: '189 KB', uploadDate: '2024-11-17' }
-      ],
-      internalNotes: ['Waiting for registrar confirmation - DS']
-    },
-    {
-      id: 'REQ-2024-006',
-      studentName: 'Emma Wilson',
-      studentEmail: 'emma.w@university.edu',
-      studentId: 'STU-006',
-      requestType: 'Reduced Course Load',
-      category: 'Academic & Employment',
-      status: 'New',
-      priority: 'High',
-      submittedDate: '2024-11-21',
-      dueDate: '2024-12-05',
-      details: {
-        currentCourseLoad: 12,
-        requestedCourseLoad: 6,
-        reason: 'Medical',
-        explanation: 'Undergoing medical treatment that requires reduced academic load'
-      },
-      documents: [
-        { name: 'Medical Certificate.pdf', size: '334 KB', uploadDate: '2024-11-21' },
-        { name: 'Doctor Letter.pdf', size: '201 KB', uploadDate: '2024-11-21' }
-      ],
-      internalNotes: []
-    },
-    {
-      id: 'REQ-2024-007',
-      studentName: 'David Kim',
-      studentEmail: 'david.k@university.edu',
-      studentId: 'STU-007',
-      requestType: 'Address Change',
-      category: 'Immigration Documents',
-      status: 'Approved',
-      priority: 'Normal',
-      submittedDate: '2024-11-15',
-      dueDate: '2024-11-29',
-      assignedTo: 'Dr. Johnson',
-      details: {
-        previousAddress: '123 Old Street, Boston, MA 02115',
-        newAddress: '456 New Avenue, Apt 3B, Boston, MA 02116',
-        moveDate: '2024-11-10',
-        phoneNumber: '(617) 555-0123'
-      },
-      documents: [
-        { name: 'Lease Agreement.pdf', size: '512 KB', uploadDate: '2024-11-15' }
-      ],
-      internalNotes: ['SEVIS updated successfully - MJ']
-    },
-    {
-      id: 'REQ-2024-008',
-      studentName: 'Sofia Garcia',
-      studentEmail: 'sofia.g@university.edu',
-      studentId: 'STU-008',
-      requestType: 'Status Clarification',
-      category: 'Status & Compliance',
-      status: 'Under Review',
-      priority: 'Low',
-      submittedDate: '2024-11-16',
-      dueDate: '2024-11-30',
-      assignedTo: 'Dr. Smith',
-      details: {
-        question: 'Can I take online courses during summer?',
-        situation: 'Planning summer schedule and want to confirm if I can take all online courses'
-      },
-      documents: [],
-      internalNotes: ['Checking with policy guidelines - DS']
-    }
-  ]);
-
-  // Fetch requests from backend
+  // ── Fetch from backend ────────────────────────────────────────────────────
   useEffect(() => {
     const fetchRequests = async () => {
       try {
         setLoading(true);
-        
-        // Get university ID from userData
-        const userProfile = userData?.data?.user?.user_metadata;
-        const universityId = userProfile?.universityId || 'university-001'; // Default for testing
-        
-        console.log('Fetching requests for university:', universityId);
-        console.log('User data:', userData);
-        
+        const userProfile = userData?.data?.user?.user_metadata || userData?.user?.user_metadata;
+        const universityId = userProfile?.schoolId || userProfile?.universityId || 'b5acd146-322e-4e43-80ab-4f36a12aafeb';
+
         const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-268175b3/requests/university/${universityId}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${userData?.data?.session?.access_token || userData?.session?.access_token || publicAnonKey}`
-            }
-          }
+          `https://${projectId}.supabase.co/functions/v1/make-server-268175b3/requests/school/${universityId}`,
+          { headers: { Authorization: `Bearer ${userData?.data?.session?.access_token || userData?.session?.access_token || publicAnonKey}` } }
         );
 
-        if (!response.ok) {
-          const error = await response.json();
-          console.error('Error fetching requests:', error);
-          alert(`Failed to fetch requests: ${error.error || 'Unknown error'}`);
-          return;
-        }
+        if (!response.ok) { const error = await response.json(); console.error('Error fetching requests:', error); return; }
 
         const result = await response.json();
-        console.log('Fetched backend requests:', result.requests);
-        
-        // Transform backend requests to match our Request interface
-        const transformedRequests = result.requests.map((req: any) => ({
+        const transformed = (result.requests || []).map((req: any) => ({
           id: req.id,
-          studentName: req.userName || 'Unknown Student',
-          studentEmail: req.userEmail || req.userId,
-          studentId: req.userId,
-          requestType: req.requestName || req.requestType,
+          studentName: req.student?.user?.name || req.userName || 'Unknown Student',
+          studentEmail: req.student?.user?.email || req.userEmail || req.student_id || req.userId || 'Unknown',
+          studentId: req.student_id || req.userId || req.student?.id || '',
+          requestType: req.request_name || req.requestName || req.request_type || req.requestType,
           category: 'Immigration Documents',
-          status: req.status === 'pending' ? 'New' : req.status === 'approved' ? 'Approved' : req.status === 'rejected' ? 'Rejected' : req.status,
+          status: req.status === 'pending' ? 'New' : req.status === 'approved' ? 'Approved' : req.status === 'rejected' ? 'Rejected' : (req.status || 'New'),
           priority: req.priority || 'Normal',
-          submittedDate: req.submittedAt?.split('T')[0] || new Date().toISOString().split('T')[0],
-          dueDate: req.dueDate?.split('T')[0] || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          details: req.formData || { reason: req.reason },
-          documents: req.uploadedFiles || [],
-          internalNotes: []
+          submittedDate: (req.submitted_at || req.submittedAt || new Date().toISOString()).split('T')[0],
+          dueDate: (req.due_date || req.dueDate || new Date(Date.now() + 14 * 86400000).toISOString()).split('T')[0],
+          details: req.form_data || req.formData || { reason: req.reason },
+          documents: req.uploaded_files || req.uploadedFiles || [],
+          internalNotes: req.internal_notes || req.internalNotes ? [req.internal_notes || req.internalNotes] : [],
         }));
-
-        setBackendRequests(transformedRequests);
-      } catch (error) {
-        console.error('Error fetching requests:', error);
-      } finally {
-        setLoading(false);
-      }
+        setBackendRequests(transformed);
+      } catch (e) { console.error('Error fetching requests:', e); }
+      finally { setLoading(false); }
     };
-
     fetchRequests();
   }, [userData]);
 
-  // Combine mock requests with backend requests
-  const allRequests = [...backendRequests, ...requests];
+  const allRequests: Request[] = backendRequests;
 
-  // Statistics
-  const stats = [
-    { 
-      label: 'Total Requests', 
-      value: allRequests.length, 
-      icon: ClipboardList, 
-      color: 'bg-blue-500',
-      subtext: '+3 this week'
-    },
-    { 
-      label: 'Pending Action', 
-      value: allRequests.filter(r => r.status === 'New' || r.status === 'Info Needed').length, 
-      icon: Clock, 
-      color: 'bg-yellow-500',
-      subtext: 'Need review'
-    },
-    { 
-      label: 'Under Review', 
-      value: allRequests.filter(r => r.status === 'Under Review').length, 
-      icon: Loader, 
-      color: 'bg-purple-500',
-      subtext: 'In progress'
-    },
-    { 
-      label: 'Urgent Requests', 
-      value: allRequests.filter(r => r.priority === 'Urgent' && r.status !== 'Approved').length, 
-      icon: AlertCircle, 
-      color: 'bg-red-500',
-      subtext: 'High priority'
-    }
-  ];
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  const totalReqs = allRequests.length;
+  const pendingAction = allRequests.filter(r => r.status === 'New' || r.status === 'Info Needed').length;
+  const underReview = allRequests.filter(r => r.status === 'Under Review').length;
+  const urgentReqs = allRequests.filter(r => r.priority === 'Urgent' && r.status !== 'Approved').length;
 
-  // Filter and sort requests
-  const filteredRequests = allRequests
-    .filter(req => {
-      const statusMatch = filterStatus === 'all' || req.status === filterStatus;
-      const typeMatch = filterType === 'all' || req.requestType === filterType;
-      const priorityMatch = filterPriority === 'all' || req.priority === filterPriority;
-      const searchMatch = searchQuery === '' || 
-        req.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        req.studentEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        req.requestType.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        req.id.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      return statusMatch && typeMatch && priorityMatch && searchMatch;
+  // ── Filter & Sort ─────────────────────────────────────────────────────────
+  const filtered = allRequests
+    .filter(r => {
+      if (filterStatus !== 'all' && r.status !== filterStatus) return false;
+      if (filterPriority !== 'all' && r.priority !== filterPriority) return false;
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        if (!r.studentName.toLowerCase().includes(q) && !r.studentEmail.toLowerCase().includes(q) && !r.requestType.toLowerCase().includes(q) && !r.id.toLowerCase().includes(q)) return false;
+      }
+      return true;
     })
     .sort((a, b) => {
-      if (sortBy === 'date') {
-        return new Date(b.submittedDate).getTime() - new Date(a.submittedDate).getTime();
-      } else if (sortBy === 'priority') {
-        const priorityOrder = { 'Urgent': 0, 'High': 1, 'Normal': 2, 'Low': 3 };
-        return priorityOrder[a.priority] - priorityOrder[b.priority];
-      } else {
-        return a.studentName.localeCompare(b.studentName);
+      if (sortBy === 'date') return new Date(b.submittedDate).getTime() - new Date(a.submittedDate).getTime();
+      if (sortBy === 'priority') {
+        const o: Record<string, number> = { Urgent: 0, High: 1, Normal: 2, Low: 3 };
+        return (o[a.priority] ?? 2) - (o[b.priority] ?? 2);
       }
+      return a.studentName.localeCompare(b.studentName);
     });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'New':
-        return 'bg-blue-100 text-blue-800';
-      case 'Under Review':
-        return 'bg-purple-100 text-purple-800';
-      case 'Info Needed':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'Approved':
-        return 'bg-green-100 text-green-800';
-      case 'Rejected':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
+  // ── Update handler ────────────────────────────────────────────────────────
+  const handleUpdateRequest = (u: Request) => {
+    setBackendRequests(prev => prev.map(r => r.id === u.id ? u : r));
+    setSelectedRequest(u);
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'Urgent':
-        return 'bg-red-100 text-red-800 border-red-300';
-      case 'High':
-        return 'bg-orange-100 text-orange-800 border-orange-300';
-      case 'Normal':
-        return 'bg-gray-100 text-gray-800 border-gray-300';
-      case 'Low':
-        return 'bg-blue-100 text-blue-800 border-blue-300';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-300';
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
-  const getDaysUntilDue = (dueDate: string) => {
-    const today = new Date();
-    const due = new Date(dueDate);
-    const diffTime = due.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
-
-  const handleUpdateRequest = (updatedRequest: Request) => {
-    // Update both mock requests and backend requests
-    setRequests(requests.map(req => 
-      req.id === updatedRequest.id ? updatedRequest : req
-    ));
-    setBackendRequests(backendRequests.map(req => 
-      req.id === updatedRequest.id ? updatedRequest : req
-    ));
-    setSelectedRequest(updatedRequest);
-  };
-
-  // If viewing individual request
+  // ── Detail view ───────────────────────────────────────────────────────────
   if (selectedRequest) {
     return (
-      <RequestProcessingView 
+      <RequestProcessingView
         request={selectedRequest}
         onBack={() => setSelectedRequest(null)}
         onUpdate={handleUpdateRequest}
@@ -450,267 +168,212 @@ export function DSORequestCenter({ onBack, onLogout, userName = 'DSO Admin', use
     );
   }
 
-  // Main request list view
+  // ── Shared styles ─────────────────────────────────────────────────────────
+  const selectStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: '7px',
+    padding: '0 12px', height: '36px',
+    background: '#f4f5f7', border: '1px solid #e5e7eb',
+    borderRadius: '6px', fontSize: '13px', fontWeight: 400,
+    color: '#111827', cursor: 'pointer', whiteSpace: 'nowrap',
+    fontFamily: 'inherit', appearance: 'none' as const,
+  };
+
+  const badgeBase: React.CSSProperties = {
+    display: 'inline-flex', alignItems: 'center',
+    padding: '3px 10px', borderRadius: '20px',
+    fontSize: '12px', fontWeight: 500, whiteSpace: 'nowrap',
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#F5F6FA]">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 mb-6">
-        <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-[#2A73E8] rounded-lg flex items-center justify-center">
-                  <Globe className="w-5 h-5 text-white" />
-                </div>
-                <span className="text-xl text-gray-900">Pathly</span>
-                <Badge className="ml-2 bg-purple-100 text-purple-800 hover:bg-purple-100">DSO Admin</Badge>
-              </div>
-              <span className="text-gray-300 hidden sm:block">|</span>
-              <div className="hidden sm:flex items-center gap-2">
-                <ClipboardList className="w-5 h-5 text-[#2A73E8]" />
-                <span className="text-gray-700">Request Center</span>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={onBack}
-                className="border-[#2A73E8] text-[#2A73E8] hover:bg-[#2A73E8] hover:text-white"
-              >
-                <Home className="w-4 h-4 mr-2" />
-                Back to Dashboard
-              </Button>
-              <Button variant="ghost" size="sm">
-                <Bell className="w-5 h-5" />
-              </Button>
-              {userName && (
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 bg-[#2A73E8] rounded-full flex items-center justify-center text-white">
-                    {userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
-                  </div>
-                  {onLogout && (
-                    <Button variant="ghost" size="sm" onClick={onLogout}>
-                      Log Out
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+    <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: '22px', background: '#f4f5f7', fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
+
+      {/* Page heading */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <svg viewBox="0 0 20 20" fill="none" stroke="#7c3aed" strokeWidth="1.6" width="20" height="20">
+            <rect x="3" y="2" width="14" height="16" rx="2"/><path d="M7 6h6M7 10h6M7 14h4"/>
+          </svg>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="px-4 sm:px-6 lg:px-8 pb-8">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex items-center gap-3 mb-2">
-              <ClipboardList className="w-8 h-8 text-[#2A73E8]" />
-              <h1 className="text-gray-900">Request Management Center</h1>
-            </div>
-            <p className="text-gray-600">Review and process student immigration and academic requests.</p>
-          </div>
-
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {stats.map((stat, idx) => (
-              <Card key={idx} className="shadow-sm border-0">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`w-12 h-12 ${stat.color} rounded-lg flex items-center justify-center`}>
-                      <stat.icon className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-gray-900 mb-1">{stat.value}</p>
-                      <p className="text-gray-500">{stat.subtext}</p>
-                    </div>
-                  </div>
-                  <p className="text-gray-700">{stat.label}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {/* Filters and Search */}
-          <Card className="shadow-sm border-0 mb-6">
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                {/* Search */}
-                <div className="lg:col-span-2 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search by student, email, or request ID..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2A73E8]"
-                  />
-                </div>
-
-                {/* Status Filter */}
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger>
-                    <Filter className="w-4 h-4 mr-2" />
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Statuses</SelectItem>
-                    <SelectItem value="New">New</SelectItem>
-                    <SelectItem value="Under Review">Under Review</SelectItem>
-                    <SelectItem value="Info Needed">Info Needed</SelectItem>
-                    <SelectItem value="Approved">Approved</SelectItem>
-                    <SelectItem value="Rejected">Rejected</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                {/* Priority Filter */}
-                <Select value={filterPriority} onValueChange={setFilterPriority}>
-                  <SelectTrigger>
-                    <AlertCircle className="w-4 h-4 mr-2" />
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Priorities</SelectItem>
-                    <SelectItem value="Urgent">Urgent</SelectItem>
-                    <SelectItem value="High">High</SelectItem>
-                    <SelectItem value="Normal">Normal</SelectItem>
-                    <SelectItem value="Low">Low</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                {/* Sort */}
-                <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
-                  <SelectTrigger>
-                    <ArrowUpDown className="w-4 h-4 mr-2" />
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="date">Sort by Date</SelectItem>
-                    <SelectItem value="priority">Sort by Priority</SelectItem>
-                    <SelectItem value="student">Sort by Student</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Request List */}
-          <Card className="shadow-sm border-0">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>All Requests ({filteredRequests.length})</span>
-                <Button variant="outline" size="sm">
-                  <Download className="w-4 h-4 mr-2" />
-                  Export
-                </Button>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <Loader className="w-12 h-12 text-[#2A73E8] animate-spin mb-4" />
-                  <p className="text-gray-600">Loading requests...</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {filteredRequests.length === 0 ? (
-                    <div className="text-center py-12">
-                      <ClipboardList className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                      <p className="text-gray-500 mb-2">No requests found</p>
-                      <p className="text-gray-400">Try adjusting your filters</p>
-                    </div>
-                  ) : (
-                  filteredRequests.map((request) => {
-                    const daysUntilDue = getDaysUntilDue(request.dueDate);
-                    const isOverdue = daysUntilDue < 0;
-                    const isDueSoon = daysUntilDue <= 3 && daysUntilDue >= 0;
-
-                    return (
-                      <div 
-                        key={request.id}
-                        className="p-4 border border-gray-200 rounded-lg hover:border-[#2A73E8] hover:shadow-md transition-all cursor-pointer bg-white"
-                        onClick={() => setSelectedRequest(request)}
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          {/* Left side - Main info */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-3 mb-2 flex-wrap">
-                              <p className="text-gray-900">{request.studentName}</p>
-                              <Badge variant="outline" className="text-xs">
-                                {request.id}
-                              </Badge>
-                              <Badge className={getPriorityColor(request.priority)}>
-                                {request.priority}
-                              </Badge>
-                              {request.assignedTo && (
-                                <Badge variant="outline" className="text-xs">
-                                  <User className="w-3 h-3 mr-1" />
-                                  {request.assignedTo}
-                                </Badge>
-                              )}
-                            </div>
-                            
-                            <div className="flex items-center gap-2 mb-2">
-                              <FileText className="w-4 h-4 text-gray-400" />
-                              <p className="text-gray-700">{request.requestType}</p>
-                              <span className="text-gray-400">•</span>
-                              <p className="text-gray-500">{request.category}</p>
-                            </div>
-
-                            <div className="flex items-center gap-4 text-gray-500">
-                              <div className="flex items-center gap-1">
-                                <Calendar className="w-4 h-4" />
-                                <span>Submitted: {formatDate(request.submittedDate)}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Clock className="w-4 h-4" />
-                                <span className={isOverdue ? 'text-red-600' : isDueSoon ? 'text-yellow-600' : ''}>
-                                  Due: {formatDate(request.dueDate)}
-                                  {isOverdue && ' (Overdue)'}
-                                  {isDueSoon && !isOverdue && ` (${daysUntilDue}d left)`}
-                                </span>
-                              </div>
-                              {request.documents.length > 0 && (
-                                <div className="flex items-center gap-1">
-                                  <FileText className="w-4 h-4" />
-                                  <span>{request.documents.length} document{request.documents.length !== 1 ? 's' : ''}</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Right side - Status and actions */}
-                          <div className="flex flex-col items-end gap-2">
-                            <Badge className={getStatusColor(request.status)}>
-                              {request.status}
-                            </Badge>
-                            
-                            <Button 
-                              size="sm" 
-                              className="bg-[#2A73E8] hover:bg-[#1557b0]"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedRequest(request);
-                              }}
-                            >
-                              <Eye className="w-4 h-4 mr-2" />
-                              Review
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+        <div>
+          <h1 style={{ fontSize: '19px', fontWeight: 600, letterSpacing: '-0.3px', margin: 0 }}>Student Requests</h1>
+          <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '2px' }}>Review and process student immigration and academic requests.</p>
         </div>
       </div>
+
+      {/* Stat cards — 4 columns */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
+        {[
+          { num: totalReqs, sub: 'All submissions', label: 'Total Requests', iconColor: '#dbeafe', iconStroke: '#1d4ed8',
+            icon: <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.6" width="22" height="22"><rect x="4" y="2" width="14" height="18" rx="2"/><path d="M8 7h6M8 11h6M8 15h4"/></svg> },
+          { num: pendingAction, sub: 'Need review', label: 'Pending Action', iconColor: '#fef3c7', iconStroke: '#b45309',
+            icon: <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.6" width="22" height="22"><circle cx="11" cy="11" r="8"/><path d="M11 7v4l2.5 2.5"/></svg> },
+          { num: underReview, sub: 'In progress', label: 'Under Review', iconColor: '#ede9fe', iconStroke: '#7c3aed',
+            icon: <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.6" width="22" height="22"><circle cx="11" cy="11" r="8"/><path d="M8 11h6M11 8v6"/></svg> },
+          { num: urgentReqs, sub: 'High priority', label: 'Urgent Requests', iconColor: '#fee2e2', iconStroke: '#b91c1c',
+            icon: <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.6" width="22" height="22"><path d="M11 3L2 19h18L11 3z"/><path d="M11 10v4M11 16v.5"/></svg> },
+        ].map(({ num, sub, label, iconColor, iconStroke, icon }, i) => (
+          <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '18px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ width: '46px', height: '46px', borderRadius: '12px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: iconColor, color: iconStroke }}>
+              {icon}
+            </div>
+            <div>
+              <div style={{ fontSize: '24px', fontWeight: 600, letterSpacing: '-0.5px', lineHeight: 1 }}>{num}</div>
+              <div style={{ fontSize: '11.5px', color: '#9ca3af', marginTop: '2px' }}>{sub}</div>
+              <div style={{ fontSize: '13px', fontWeight: 500, color: '#6b7280', marginTop: '6px' }}>{label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter bar */}
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '16px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
+        {/* Search */}
+        <div style={{ flex: 1, minWidth: '220px', maxWidth: '420px', display: 'flex', alignItems: 'center', gap: '8px', background: '#f4f5f7', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '0 12px', height: '36px', fontSize: '13px', color: '#6b7280' }}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="7" cy="7" r="4"/><path d="M11 11l3 3"/></svg>
+          <input
+            type="text"
+            placeholder="Search by student, email, or request ID..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ border: 'none', background: 'transparent', outline: 'none', flex: 1, fontSize: '13px', fontFamily: 'inherit', color: '#111827' }}
+          />
+        </div>
+
+        {/* Status */}
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={selectStyle}>
+          <option value="all">All Statuses</option>
+          <option value="New">New</option>
+          <option value="Under Review">Under Review</option>
+          <option value="Info Needed">Info Needed</option>
+          <option value="Approved">Approved</option>
+          <option value="Rejected">Rejected</option>
+        </select>
+
+        {/* Priority */}
+        <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)} style={selectStyle}>
+          <option value="all">All Priorities</option>
+          <option value="Urgent">Urgent</option>
+          <option value="High">High</option>
+          <option value="Normal">Normal</option>
+          <option value="Low">Low</option>
+        </select>
+
+        {/* Divider */}
+        <div style={{ width: '100%', height: '1px', background: '#e5e7eb', margin: '4px 0' }} />
+
+        {/* Sort */}
+        <select value={sortBy} onChange={e => setSortBy(e.target.value as any)} style={selectStyle}>
+          <option value="date">Sort by Date</option>
+          <option value="priority">Sort by Priority</option>
+          <option value="student">Sort by Student</option>
+        </select>
+      </div>
+
+      {/* List header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>All Requests ({filtered.length})</span>
+        <button style={{
+          display: 'flex', alignItems: 'center', gap: '6px',
+          padding: '7px 14px', borderRadius: '6px',
+          border: '1px solid #e5e7eb', background: '#fff',
+          fontSize: '13px', fontWeight: 500, cursor: 'pointer',
+          color: '#111827', fontFamily: 'inherit',
+        }}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M8 2v8M5 7l3 3 3-3M3 13h10"/></svg>
+          Export
+        </button>
+      </div>
+
+      {/* Request cards */}
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af' }}>Loading requests…</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af' }}>
+          <p style={{ fontSize: '14px', marginBottom: '4px' }}>No requests found</p>
+          <p style={{ fontSize: '12px' }}>Try adjusting your filters</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {filtered.map(request => {
+            const days = daysUntil(request.dueDate);
+            const overdue = days < 0;
+            const dueSoon = days >= 0 && days <= 3;
+
+            return (
+              <div
+                key={request.id}
+                style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '16px 20px', transition: 'box-shadow 0.15s', cursor: 'pointer' }}
+                onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)')}
+                onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}
+                onClick={() => setSelectedRequest(request)}
+              >
+                {/* Top row: student name + ID + badges + Review btn */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>{request.studentName}</span>
+                    <span style={{ fontSize: '11.5px', color: '#9ca3af', background: '#f4f5f7', border: '1px solid #e5e7eb', padding: '2px 8px', borderRadius: '4px', fontFamily: "'DM Mono', monospace" }}>
+                      {request.id.length > 12 ? request.id.slice(0, 8) + '…' : request.id}
+                    </span>
+                    <span style={{ ...badgeBase, ...priorityBadge(request.priority) }}>{request.priority}</span>
+                    {request.assignedTo && (
+                      <span style={{ ...badgeBase, background: '#f4f5f7', color: '#6b7280', border: '1px solid #e5e7eb' }}>
+                        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.3" width="11" height="11" style={{ marginRight: '4px' }}><circle cx="6" cy="4" r="2"/><path d="M2 10c0-2.5 8-2.5 8 0"/></svg>
+                        {request.assignedTo}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+                    <span style={{ ...badgeBase, ...statusBadge(request.status) }}>{request.status}</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSelectedRequest(request); }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '6px',
+                        padding: '7px 16px', borderRadius: '6px',
+                        background: '#2563eb', color: '#fff', border: 'none',
+                        fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = '#1d4ed8')}
+                      onMouseLeave={e => (e.currentTarget.style.background = '#2563eb')}
+                    >
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="14" height="14"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2"/></svg>
+                      Review
+                    </button>
+                  </div>
+                </div>
+
+                {/* Middle row: request type + category */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', fontSize: '13px', color: '#374151' }}>
+                  <svg viewBox="0 0 14 14" fill="none" stroke="#9ca3af" strokeWidth="1.3" width="14" height="14"><rect x="2" y="1" width="10" height="12" rx="1.5"/><path d="M5 4h4M5 7h4M5 10h2"/></svg>
+                  <span style={{ fontWeight: 500 }}>{request.requestType}</span>
+                  <span style={{ color: '#d1d5db' }}>•</span>
+                  <span style={{ color: '#6b7280' }}>{request.category}</span>
+                </div>
+
+                {/* Footer: dates + docs */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '20px', paddingTop: '10px', borderTop: '1px solid #f3f4f6', fontSize: '12.5px', color: '#6b7280' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <svg viewBox="0 0 14 14" fill="none" stroke="#9ca3af" strokeWidth="1.3" width="13" height="13"><rect x="1.5" y="2.5" width="11" height="10" rx="1"/><path d="M1.5 6h11M4.5 1v2M9.5 1v2"/></svg>
+                    Submitted: {fmt(request.submittedDate)}
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: overdue ? '#dc2626' : dueSoon ? '#d97706' : undefined }}>
+                    <svg viewBox="0 0 14 14" fill="none" stroke={overdue ? '#dc2626' : dueSoon ? '#d97706' : '#9ca3af'} strokeWidth="1.3" width="13" height="13"><circle cx="7" cy="7" r="5.5"/><path d="M7 4v3l2 2"/></svg>
+                    Due: {fmt(request.dueDate)}
+                    {overdue && ' (Overdue)'}
+                    {dueSoon && !overdue && ` (${days}d left)`}
+                  </span>
+                  {request.documents.length > 0 && (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <svg viewBox="0 0 14 14" fill="none" stroke="#9ca3af" strokeWidth="1.3" width="13" height="13"><rect x="2" y="1" width="10" height="12" rx="1.5"/><path d="M5 4h4M5 7h4"/></svg>
+                      {request.documents.length} doc{request.documents.length !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

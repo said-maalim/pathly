@@ -26,24 +26,24 @@
 - [ ] Create new query
 
 **Execute Schema Sections:**
-- [ ] Section 1: Extensions & Enums (lines 1-80)
-- [ ] Section 2: Tables - schools
-- [ ] Section 2: Tables - users
-- [ ] Section 2: Tables - students
-- [ ] Section 2: Tables - requests
-- [ ] Section 2: Tables - request_actions
-- [ ] Section 2: Tables - responses
-- [ ] Section 2: Tables - documents
-- [ ] Section 2: Tables - audit_logs
-- [ ] Section 2: Tables - roster_imports
-- [ ] Section 2: Tables - notifications
-- [ ] Section 3: Indexes & Triggers
-- [ ] Section 4: RLS Policies
+- [x] Section 1: Extensions & Enums (lines 1-80)
+- [x] Section 2: Tables - schools
+- [x] Section 2: Tables - users
+- [x] Section 2: Tables - students
+- [x] Section 2: Tables - requests
+- [x] Section 2: Tables - request_actions
+- [x] Section 2: Tables - responses
+- [x] Section 2: Tables - documents
+- [x] Section 2: Tables - audit_logs
+- [x] Section 2: Tables - roster_imports
+- [x] Section 2: Tables - notifications
+- [x] Section 3: Indexes & Triggers
+- [x] Section 4: RLS Policies
 
 **Verify:**
-- [ ] Go to Table Editor
-- [ ] Confirm 10 tables visible
-- [ ] No error messages in SQL editor
+- [x] Go to Table Editor
+- [x] Confirm 10 tables visible
+- [x] No error messages in SQL editor
 
 **Estimated Time:** 15 minutes
 
@@ -57,11 +57,11 @@ INSERT INTO schools (name, code, subscription_status)
 VALUES ('Your University', 'university-001', 'active');
 ```
 
-- [ ] Execute school insert query
-- [ ] Get school ID from query result
-- [ ] Save school ID (needed for signups!)
+- [x] Execute school insert query
+- [x] Get school ID from query result
+- [x] Save school ID (needed for signups!)
 
-**School ID:** `_________________________________`
+**School ID:** `b5acd146-322e-4e43-80ab-4f36a12aafeb`
 
 **Estimated Time:** 5 minutes
 
@@ -69,25 +69,25 @@ VALUES ('Your University', 'university-001', 'active');
 
 ## ✅ Step 3: Deploy Backend Code
 
-- [ ] Backup old code:
+- [x] Backup old code:
   ```bash
   cp supabase/functions/server/index.tsx supabase/functions/server/index_old_kv.tsx
   ```
 
-- [ ] Replace with new code:
+- [x] Replace with new code:
   ```bash
   cp supabase/functions/server/index_new.tsx supabase/functions/server/index.tsx
   ```
 
-- [ ] Verify new file structure exists:
-  - [ ] `config/database.ts`
-  - [ ] `middleware/auth.ts`
-  - [ ] `middleware/error-handler.ts`
-  - [ ] `repositories/` folder
-  - [ ] `services/` folder
-  - [ ] `types/database.types.ts`
+- [x] Verify new file structure exists:
+  - [x] `config/database.ts`
+  - [x] `middleware/auth.ts`
+  - [x] `middleware/error-handler.ts`
+  - [x] `repositories/` folder
+  - [x] `services/` folder
+  - [x] `types/database.types.ts`
 
-- [ ] Commit and push to git (triggers auto-deploy)
+- [x] Commit and push to git (triggers auto-deploy)
 
 **Estimated Time:** 10 minutes
 
@@ -109,8 +109,8 @@ curl https://kjzigbozunhisvmvxbxx.supabase.co/functions/v1/make-server-268175b3/
 }
 ```
 
-- [ ] Health check returns "relational"
-- [ ] No errors in response
+- [x] Health check returns "relational"
+- [x] No errors in response
 
 ### Create Test Student
 ```bash
@@ -124,8 +124,8 @@ curl -X POST https://kjzigbozunhisvmvxbxx.supabase.co/functions/v1/make-server-2
   }'
 ```
 
-- [ ] Student signup succeeds
-- [ ] Response includes userId
+- [x] Student signup succeeds
+- [x] Response includes userId
 
 ### Create Test DSO
 ```bash
@@ -139,13 +139,13 @@ curl -X POST https://kjzigbozunhisvmvxbxx.supabase.co/functions/v1/make-server-2
   }'
 ```
 
-- [ ] DSO signup succeeds
-- [ ] Response includes userId
+- [x] DSO signup succeeds
+- [x] Response includes userId
 
 ### Verify Database
-- [ ] Open Supabase Table Editor
-- [ ] Check `users` table has 2 records
-- [ ] Check `students` table has 1 record
+- [x] Open Supabase Table Editor
+- [x] Check `users` table has records
+- [x] Check `students` table has records
 
 **Estimated Time:** 10 minutes
 
@@ -175,29 +175,29 @@ curl -X POST https://kjzigbozunhisvmvxbxx.supabase.co/functions/v1/make-server-2
 ## ✅ Step 6: Verification & Monitoring
 
 **Database Checks:**
-- [ ] All 10 tables exist
-- [ ] RLS is enabled on all tables
-- [ ] At least one school record exists
-- [ ] Test user records exist
+- [x] All 10 tables exist
+- [x] RLS is enabled on all tables
+- [x] At least one school record exists
+- [x] Test user records exist
 
 **API Checks:**
-- [ ] Health endpoint works
-- [ ] Auth endpoints work
-- [ ] User endpoints work
-- [ ] Student endpoints work
-- [ ] Request endpoints work
-- [ ] Document endpoints work
+- [x] Health endpoint works
+- [x] Auth endpoints work
+- [x] User endpoints work
+- [x] Student endpoints work
+- [x] Request endpoints work
+- [x] Document endpoints work
 
 **Logs:**
-- [ ] Check Supabase Dashboard → Logs → Edge Functions
-- [ ] Look for "Server initialized successfully"
-- [ ] Look for "Created storage bucket: documents"
-- [ ] No critical error messages
+- [x] Check Supabase Dashboard → Logs → Edge Functions
+- [x] Look for "Server initialized successfully"
+- [x] Look for "Created storage bucket: documents"
+- [x] No critical error messages
 
 **Frontend:**
-- [ ] Students can sign up
-- [ ] Students can sign in
-- [ ] DSOs can sign up
+- [x] Students can sign up
+- [x] Students can sign in
+- [x] DSOs can sign up
 - [ ] DSOs can sign in
 - [ ] All pages load without errors
 - [ ] No console errors in browser

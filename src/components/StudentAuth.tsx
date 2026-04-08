@@ -13,7 +13,7 @@ export function StudentAuth({ onNavigate, onLogin }: StudentAuthProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [universityId, setUniversityId] = useState('');
+  const [studentIdNumber, setStudentIdNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -30,8 +30,15 @@ export function StudentAuth({ onNavigate, onLogin }: StudentAuthProps) {
       setMessage({ type: 'error', text: 'Please enter your name' });
       return;
     }
-    if (!universityId.trim()) {
-      setMessage({ type: 'error', text: 'Please enter your university ID' });
+    if (!email || !password || !name || !studentIdNumber) {
+      setMessage({ type: 'error', text: 'All fields are required' });
+      return;
+    }
+
+    // Explicit format validation for Student ID
+    const studentIdRegex = /^U\d{8}$/;
+    if (!studentIdRegex.test(studentIdNumber)) {
+      setMessage({ type: 'error', text: 'Student ID must match format U######## (e.g. U12345678)' });
       return;
     }
     if (!validateEmail(email)) {
@@ -49,28 +56,34 @@ export function StudentAuth({ onNavigate, onLogin }: StudentAuthProps) {
 
     setLoading(true);
     try {
-      console.log('Creating student account with:', { email, name, universityId });
-      
+      console.log('Creating student account with:', { email, name, studentIdNumber });
+
       // Call student signup endpoint
       const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-268175b3/auth/signup/student`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`
         },
-        body: JSON.stringify({ email, password, name, universityId }),
+        body: JSON.stringify({
+          email,
+          password,
+          name,
+          studentIdNumber,
+          schoolId: 'b5acd146-322e-4e43-80ab-4f36a12aafeb' // The UUID 
+        }),
       });
-      
+
       const result = await response.json();
       console.log('Student signup result:', result);
-      
+
       if (result.error) {
         setMessage({ type: 'error', text: result.error });
         setLoading(false);
       } else {
-        setMessage({ 
-          type: 'success', 
-          text: '✅ Student account created! Now sign in with your credentials.' 
+        setMessage({
+          type: 'success',
+          text: '✅ Student account created! Now sign in with your credentials.'
         });
         setIsSignUp(false);
         setPassword('');
@@ -100,9 +113,9 @@ export function StudentAuth({ onNavigate, onLogin }: StudentAuthProps) {
     try {
       console.log('Student signing in with:', email);
       const result = await api.signIn(email, password);
-      
+
       console.log('Student sign in result:', result);
-      
+
       if (result.error) {
         setMessage({ type: 'error', text: `Login failed: ${result.error}` });
         setLoading(false);
@@ -167,11 +180,10 @@ export function StudentAuth({ onNavigate, onLogin }: StudentAuthProps) {
           <div className="bg-white rounded-2xl shadow-xl p-8">
             {/* Message */}
             {message && (
-              <div className={`mb-6 p-4 rounded-lg ${
-                message.type === 'success' 
-                  ? 'bg-green-50 text-green-800 border border-green-200' 
-                  : 'bg-red-50 text-red-800 border border-red-200'
-              }`}>
+              <div className={`mb-6 p-4 rounded-lg ${message.type === 'success'
+                ? 'bg-green-50 text-green-800 border border-green-200'
+                : 'bg-red-50 text-red-800 border border-red-200'
+                }`}>
                 {message.text}
               </div>
             )}
@@ -197,20 +209,20 @@ export function StudentAuth({ onNavigate, onLogin }: StudentAuthProps) {
                     </div>
                   </div>
 
-                  {/* University ID */}
+                  {/* Student ID */}
                   <div>
-                    <label htmlFor="universityId" className="block text-sm font-medium text-gray-700 mb-2">
-                      University ID / Student ID
+                    <label htmlFor="studentIdNumber" className="block text-sm font-medium text-gray-700 mb-2">
+                      Student ID
                     </label>
                     <div className="relative">
                       <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                       <input
-                        id="universityId"
+                        id="studentIdNumber"
                         type="text"
-                        value={universityId}
-                        onChange={(e) => setUniversityId(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="e.g., U12345678"
+                        value={studentIdNumber}
+                        onChange={(e) => setStudentIdNumber(e.target.value.toUpperCase())}
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent uppercase"
+                        placeholder="U12345678"
                       />
                     </div>
                   </div>
