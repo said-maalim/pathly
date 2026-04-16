@@ -131,7 +131,20 @@ export function UniversityDSOPortal({ onNavigate, onLogout, userData }: Universi
         return <DSORequestCenter onBack={() => navigateTo('dashboard')} onLogout={onLogout} userName={userName} userData={userData} />;
 
       case 'communication-center':
-        return <DSOCommunicationCenter onBack={() => navigateTo('dashboard')} onLogout={onLogout} userName={userName} />;
+        return (
+          <DSOCommunicationCenter
+            onBack={() => navigateTo('dashboard')}
+            onLogout={onLogout}
+            userName={userName}
+            schoolId={schoolId}
+            students={mappedStudents.map(s => ({
+              id: s.id,
+              user_id: (s as any).user_id ?? s.id,
+              name: s.name,
+              email: s.email,
+            }))}
+          />
+        );
 
       case 'student-center':
         return (

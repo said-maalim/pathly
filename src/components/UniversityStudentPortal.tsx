@@ -13,6 +13,7 @@ import { DSORequestsSection } from './DSORequestsSection';
 import { AllRequestsPage } from './AllRequestsPage';
 import { toast } from 'sonner';
 
+import { StudentMessagingView } from './StudentMessagingView';
 import { useStudentProfile } from '../hooks/useStudentProfile';
 import { useStudentRequests } from '../hooks/useStudentRequests';
 import { useStudentDocuments } from '../hooks/useStudentDocuments';
@@ -146,6 +147,8 @@ export function UniversityStudentPortal({ onNavigate, onLogout, userData }: Univ
         return <ResourcesPage onBack={() => setCurrentView('dashboard')} />;
       case 'all-requests':
         return <AllRequestsPage onBack={() => setCurrentView('dashboard')} studentRequests={myRequests} dsoRequests={dsoRequests} onViewStudentRequest={() => setCurrentView('i20-tracker')} onViewDSORequest={(r) => console.log('View DSO request:', r)} />;
+      case 'messaging':
+        return <StudentMessagingView onBack={() => setCurrentView('dashboard')} />;
       default:
         return null;
     }
@@ -457,7 +460,7 @@ export function UniversityStudentPortal({ onNavigate, onLogout, userData }: Univ
             <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>Messaging</span>
-                <a style={{ fontSize: '12.5px', color: '#2563eb', fontWeight: 500, cursor: 'pointer' }}>View all</a>
+                <a onClick={() => setCurrentView('messaging')} style={{ fontSize: '12.5px', color: '#2563eb', fontWeight: 500, cursor: 'pointer' }}>View all</a>
               </div>
               <div style={{ padding: '18px' }}>
                 {/* Sample messages - connected to real data when available */}
@@ -478,7 +481,9 @@ export function UniversityStudentPortal({ onNavigate, onLogout, userData }: Univ
                     </div>
                   </div>
                 ))}
-                <button style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', marginTop: '14px', padding: '9px 14px', borderRadius: '6px', background: '#f4f5f7', border: '1px solid #e5e7eb', fontSize: '13px', fontWeight: 500, cursor: 'pointer', color: '#111827', fontFamily: 'inherit', justifyContent: 'center' }}
+                <button
+                  onClick={() => setCurrentView('messaging')}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', marginTop: '14px', padding: '9px 14px', borderRadius: '6px', background: '#f4f5f7', border: '1px solid #e5e7eb', fontSize: '13px', fontWeight: 500, cursor: 'pointer', color: '#111827', fontFamily: 'inherit', justifyContent: 'center' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#e9eaec'} onMouseLeave={e => e.currentTarget.style.background = '#f4f5f7'}>
                   {SVG.messaging} Message your DSO
                 </button>

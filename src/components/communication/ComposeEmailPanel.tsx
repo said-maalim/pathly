@@ -1,8 +1,9 @@
 /**
  * ComposeEmailPanel
  *
- * Individual and bulk email composition form. Receives template population
- * from the parent via `onTemplateUsed` and calls `onSend` when the user submits.
+ * Individual and bulk email composition form.
+ * Supports both the legacy onMessageSent callback and real API sends via onSendAsync.
+ * When a `students` list is provided, individual mode shows a dropdown instead of a free-form email field.
  */
 import { useState } from 'react';
 import { Send, User, Users } from 'lucide-react';
@@ -10,6 +11,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Textarea } from '../ui/textarea';
+
+export interface StudentOption {
+    id: string;       // students.id (not used for messaging)
+    user_id: string;  // users.id — this is the recipient_id for messages
+    name: string;
+    email: string;
+}
 
 interface EmailTemplate {
     id: string;
@@ -19,24 +27,51 @@ interface EmailTemplate {
     body: string;
 }
 
+interface SendPayload {
+    recipientId?: string;
+    recipientEmail: string;
+    subject: string;
+    body: string;
+    templateName?: string;
+    recipientType?: 'individual' | 'bulk' | 'school';
+    bulkFilter?: Record<string, unknown>;
+}
+
 interface ComposeEmailPanelProps {
     templates: EmailTemplate[];
     userName: string;
+    /** List of students for the individual-send dropdown (DSO context) */
+    students?: StudentOption[];
+    /**
+     * Async send handler that calls the real API.
+     * When provided, replaces the local-only onMessageSent call.
+     * Should throw on error so the component can show an error state.
+     */
+    onSendAsync?: (payload: SendPayload) => Promise<void>;
+    /** Fallback legacy callback — called after successful send for local state updates */
     onMessageSent: (msg: {
+        recipientId?: string;
         recipientEmail: string;
         subject: string;
         body: string;
         templateName?: string;
+        recipientType?: 'individual' | 'bulk' | 'school';
     }) => void;
 }
 
-export function ComposeEmailPanel({ templates, userName, onMessageSent }: ComposeEmailPanelProps) {
+export function ComposeEmailPanel({ templates, userName, students, onSendAsync, onMessageSent }: ComposeEmailPanelProps) {
     const [composeMode, setComposeMode] = useState<'individual' | 'bulk'>('individual');
     const [selectedTemplate, setSelectedTemplate] = useState('');
-    const [recipient, setRecipient] = useState('');
+    const [selectedStudentId, setSelectedStudentId] = useState('');  // student.user_id
+    const [recipient, setRecipient] = useState('');                   // free-form email (no dropdown)
     const [bulkRecipientGroup, setBulkRecipientGroup] = useState('');
     const [emailSubject, setEmailSubject] = useState('');
     const [emailBody, setEmailBody] = useState('');
+    const [sending, setSending] = useState(false);
+    const [sendError, setSendError] = useState('');
+
+    const useStudentDropdown = (students ?? []).length > 0;
+    const selectedStudent = students?.find(s => s.user_id === selectedStudentId);
 
     const handleTemplateSelect = (templateId: string) => {
         const template = templates.find(t => t.id === templateId);
@@ -47,34 +82,85 @@ export function ComposeEmailPanel({ templates, userName, onMessageSent }: Compos
         }
     };
 
-    const handleSend = () => {
-        if (composeMode === 'individual') {
-            if (!recipient || !emailSubject || !emailBody) { alert('Please fill in all fields'); return; }
-            onMessageSent({
-                recipientEmail: recipient,
-                subject: emailSubject,
-                body: emailBody,
-                templateName: templates.find(t => t.id === selectedTemplate)?.name,
-            });
-            alert(`Email sent successfully to ${recipient}!`);
-        } else {
-            if (!bulkRecipientGroup || !emailSubject || !emailBody) { alert('Please fill in all fields'); return; }
-            const count = bulkRecipientGroup === 'all' ? 1247 : bulkRecipientGroup === 'expiring' ? 23 : bulkRecipientGroup === 'pending' ? 12 : 25;
-            alert(`Bulk email sent successfully to ${count} students!`);
-        }
-        // Reset
+    const reset = () => {
         setRecipient('');
+        setSelectedStudentId('');
         setBulkRecipientGroup('');
         setEmailSubject('');
         setEmailBody('');
         setSelectedTemplate('');
+        setSendError('');
+    };
+
+    const handleSend = async () => {
+        setSendError('');
+
+        if (composeMode === 'individual') {
+            const recipientEmail = useStudentDropdown ? (selectedStudent?.email ?? '') : recipient;
+            const recipientId    = useStudentDropdown ? selectedStudentId : undefined;
+
+            if ((!recipientId && !recipient) || !emailSubject || !emailBody) {
+                setSendError('Please fill in all fields.');
+                return;
+            }
+
+            const payload: SendPayload = {
+                recipientId,
+                recipientEmail,
+                subject: emailSubject,
+                body: emailBody,
+                templateName: templates.find(t => t.id === selectedTemplate)?.name,
+                recipientType: 'individual',
+            };
+
+            try {
+                setSending(true);
+                if (onSendAsync) await onSendAsync(payload);
+                onMessageSent({ recipientId, recipientEmail, subject: emailSubject, body: emailBody, templateName: payload.templateName, recipientType: 'individual' });
+                reset();
+            } catch (err) {
+                setSendError(err instanceof Error ? err.message : 'Failed to send message. Please try again.');
+            } finally {
+                setSending(false);
+            }
+
+        } else {
+            if (!bulkRecipientGroup || !emailSubject || !emailBody) {
+                setSendError('Please fill in all fields.');
+                return;
+            }
+
+            const countMap: Record<string, number> = { all: 1247, expiring: 23, pending: 12, noncompliant: 25 };
+            const count = countMap[bulkRecipientGroup] ?? 0;
+
+            const payload: SendPayload = {
+                recipientEmail: '',
+                subject: emailSubject,
+                body: emailBody,
+                templateName: templates.find(t => t.id === selectedTemplate)?.name,
+                recipientType: 'bulk',
+                bulkFilter: { group: bulkRecipientGroup },
+            };
+
+            try {
+                setSending(true);
+                if (onSendAsync) await onSendAsync(payload);
+                onMessageSent({ recipientEmail: `bulk:${bulkRecipientGroup}`, subject: emailSubject, body: emailBody, templateName: payload.templateName, recipientType: 'bulk' });
+                alert(`Bulk email sent to ${count} students!`);
+                reset();
+            } catch (err) {
+                setSendError(err instanceof Error ? err.message : 'Failed to send bulk email. Please try again.');
+            } finally {
+                setSending(false);
+            }
+        }
     };
 
     return (
         <Card className="shadow-sm border-0">
             <CardHeader>
                 <CardTitle className="flex items-center justify-between">
-                    <span>Compose Email</span>
+                    <span>Compose Message</span>
                     <div className="flex gap-2">
                         <Button
                             variant={composeMode === 'individual' ? 'default' : 'outline'}
@@ -96,6 +182,14 @@ export function ComposeEmailPanel({ templates, userName, onMessageSent }: Compos
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+
+                {/* Error banner */}
+                {sendError && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                        {sendError}
+                    </div>
+                )}
+
                 {/* Template selector */}
                 <div>
                     <label className="block text-gray-700 mb-2">Use Template (Optional)</label>
@@ -112,14 +206,29 @@ export function ComposeEmailPanel({ templates, userName, onMessageSent }: Compos
                 {/* Recipient */}
                 {composeMode === 'individual' ? (
                     <div>
-                        <label className="block text-gray-700 mb-2">Recipient Email *</label>
-                        <input
-                            type="email"
-                            placeholder="student@university.edu"
-                            value={recipient}
-                            onChange={e => setRecipient(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2A73E8]"
-                        />
+                        <label className="block text-gray-700 mb-2">Recipient *</label>
+                        {useStudentDropdown ? (
+                            <Select value={selectedStudentId} onValueChange={setSelectedStudentId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select a student..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {(students ?? []).map(s => (
+                                        <SelectItem key={s.user_id} value={s.user_id}>
+                                            {s.name} — {s.email}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        ) : (
+                            <input
+                                type="email"
+                                placeholder="student@university.edu"
+                                value={recipient}
+                                onChange={e => setRecipient(e.target.value)}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2A73E8]"
+                            />
+                        )}
                     </div>
                 ) : (
                     <div>
@@ -141,7 +250,7 @@ export function ComposeEmailPanel({ templates, userName, onMessageSent }: Compos
                     <label className="block text-gray-700 mb-2">Subject *</label>
                     <input
                         type="text"
-                        placeholder="Enter email subject..."
+                        placeholder="Enter subject..."
                         value={emailSubject}
                         onChange={e => setEmailSubject(e.target.value)}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2A73E8]"
@@ -157,17 +266,18 @@ export function ComposeEmailPanel({ templates, userName, onMessageSent }: Compos
                         onChange={e => setEmailBody(e.target.value)}
                         className="min-h-64"
                     />
-                    <p className="text-gray-500 mt-2">
+                    <p className="text-gray-500 mt-2 text-sm">
                         Available placeholders: [Student Name], [Request ID], [Due Date], [Document Type], [DSO Name]
                     </p>
                 </div>
 
                 {/* Actions */}
                 <div className="flex gap-3 pt-4">
-                    <Button onClick={handleSend} className="bg-[#2A73E8] hover:bg-[#1557b0]">
-                        <Send className="w-4 h-4 mr-2" />Send Email
+                    <Button onClick={handleSend} disabled={sending} className="bg-[#2A73E8] hover:bg-[#1557b0]">
+                        <Send className="w-4 h-4 mr-2" />
+                        {sending ? 'Sending…' : 'Send Message'}
                     </Button>
-                    <Button variant="outline" onClick={() => { setRecipient(''); setBulkRecipientGroup(''); setEmailSubject(''); setEmailBody(''); setSelectedTemplate(''); }}>
+                    <Button variant="outline" onClick={reset} disabled={sending}>
                         Clear
                     </Button>
                 </div>
