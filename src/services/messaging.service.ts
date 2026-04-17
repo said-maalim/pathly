@@ -7,6 +7,13 @@ import { apiGet, apiPost, apiPut } from '../lib/api-client';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface AttachmentData {
+  name: string;
+  url: string;
+  size: number;
+  type: string;
+}
+
 export interface MessageRecord {
   id: string;
   school_id: string;
@@ -24,6 +31,7 @@ export interface MessageRecord {
   template_ref?: string;
   created_at: string;
   updated_at: string;
+  attachments?: AttachmentData[];
   // Joined from users table
   sender?: { id: string; full_name: string; email: string; role: string };
   recipient?: { id: string; full_name: string; email: string; role: string };
@@ -42,6 +50,8 @@ export interface SendMessagePayload {
   parentId?: string;
   /** For threading: share the same thread_id as the root message */
   threadId?: string;
+  /** File attachments */
+  attachments?: AttachmentData[];
 }
 
 interface MessagesResponse {

@@ -5,12 +5,13 @@
  * Supports both the legacy onMessageSent callback and real API sends via onSendAsync.
  * When a `students` list is provided, individual mode shows a dropdown instead of a free-form email field.
  */
-import { useState } from 'react';
-import { Send, User, Users } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Send, User, Users, Paperclip } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Textarea } from '../ui/textarea';
+import { supabase } from '../../lib/supabase';
 
 export interface StudentOption {
     id: string;       // students.id (not used for messaging)
@@ -35,6 +36,7 @@ interface SendPayload {
     templateName?: string;
     recipientType?: 'individual' | 'bulk' | 'school';
     bulkFilter?: Record<string, unknown>;
+    attachments?: Array<{ name: string; url: string; size: number; type: string }>;
 }
 
 interface ReplyPreFill {
@@ -79,6 +81,9 @@ export function ComposeEmailPanel({ templates, userName, students, replyPreFill,
     const [emailBody, setEmailBody] = useState('');
     const [sending, setSending] = useState(false);
     const [sendError, setSendError] = useState('');
+    const [attachments, setAttachments] = useState<Array<{ name: string; url: string; size: number; type: string }>>([]);
+    const [uploading, setUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const useStudentDropdown = (students ?? []).length > 0;
     const selectedStudent = students?.find(s => s.user_id === selectedStudentId);
@@ -100,6 +105,7 @@ export function ComposeEmailPanel({ templates, userName, students, replyPreFill,
         setEmailBody('');
         setSelectedTemplate('');
         setSendError('');
+        setAttachments([]);
     };
 
     const handleSend = async () => {
@@ -122,6 +128,7 @@ export function ComposeEmailPanel({ templates, userName, students, replyPreFill,
                 body: emailBody,
                 templateName: templates.find(t => t.id === selectedTemplate)?.name,
                 recipientType: 'individual',
+                attachments,
             };
 
             try {
@@ -151,6 +158,7 @@ export function ComposeEmailPanel({ templates, userName, students, replyPreFill,
                 templateName: templates.find(t => t.id === selectedTemplate)?.name,
                 recipientType: 'bulk',
                 bulkFilter: { group: bulkRecipientGroup },
+                attachments,
             };
 
             try {
@@ -164,6 +172,25 @@ export function ComposeEmailPanel({ templates, userName, students, replyPreFill,
             } finally {
                 setSending(false);
             }
+        }
+    };
+
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploading(true);
+        try {
+            const ext = file.name.split('.').pop();
+            const path = `attachments/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+            const { error: uploadError } = await supabase.storage.from('message-attachments').upload(path, file);
+            if (uploadError) throw uploadError;
+            const { data: urlData } = supabase.storage.from('message-attachments').getPublicUrl(path);
+            setAttachments(prev => [...prev, { name: file.name, url: urlData.publicUrl, size: file.size, type: file.type }]);
+        } catch {
+            setSendError('Failed to upload attachment');
+        } finally {
+            setUploading(false);
+            e.target.value = '';
         }
     };
 
@@ -280,6 +307,29 @@ export function ComposeEmailPanel({ templates, userName, students, replyPreFill,
                     <p className="text-gray-500 mt-2 text-sm">
                         Available placeholders: [Student Name], [Request ID], [Due Date], [Document Type], [DSO Name]
                     </p>
+                </div>
+
+                {/* Attachments */}
+                <div>
+                    <input ref={fileInputRef} type="file" className="hidden" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" onChange={handleFileSelect} />
+                    {attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-2">
+                            {attachments.map((att, i) => (
+                                <div key={i} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-gray-100 border border-gray-200 text-sm text-gray-700">
+                                    <Paperclip className="w-3 h-3 text-gray-500" />
+                                    {att.name}
+                                    <button
+                                        onClick={() => setAttachments(prev => prev.filter((_, j) => j !== i))}
+                                        className="ml-1 text-gray-400 hover:text-gray-600 text-base leading-none"
+                                    >×</button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="text-sm">
+                        <Paperclip className="w-3.5 h-3.5 mr-1.5" />
+                        {uploading ? 'Uploading…' : 'Attach File'}
+                    </Button>
                 </div>
 
                 {/* Actions */}

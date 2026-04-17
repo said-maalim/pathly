@@ -27,6 +27,7 @@ export class MessagingService {
       bulkFilter?: Record<string, unknown>;
       parentId?: string;
       threadId?: string;
+      attachments?: Array<{ name: string; url: string; size: number; type: string }>;
     }
   ) {
     // Determine recipient type from context if not explicitly provided
@@ -52,6 +53,7 @@ export class MessagingService {
       subject: data.subject,
       body: data.body,
       template_ref: data.templateRef,
+      attachments: data.attachments,
     };
 
     return await messageRepository.create(msgData);

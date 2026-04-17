@@ -8,7 +8,7 @@
  *  History  — outbox of messages sent by this DSO (real data via useDSOMessages)
  */
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { toast } from 'sonner';
 import { ComposeEmailPanel } from './communication/ComposeEmailPanel';
 import type { StudentOption } from './communication/ComposeEmailPanel';
@@ -17,7 +17,8 @@ import type { EmailTemplate } from './communication/EmailTemplatesPanel';
 import { MessageHistoryPanel } from './communication/MessageHistoryPanel';
 import type { Message } from './communication/MessageHistoryPanel';
 import { useDSOMessages } from '../hooks/useMessages';
-import { sendMessage } from '../services/messaging.service';
+import { sendMessage, getMessageThread, AttachmentData } from '../services/messaging.service';
+import { supabase } from '../lib/supabase';
 
 // ── Initial template data (local-only until DB persistence is added) ──────────
 
@@ -59,15 +60,6 @@ export function DSOCommunicationCenter({
   // ── Real data from API ───────────────────────────────────────────────────────
   const { inbox, sent, loading, error, refresh, unreadCount } = useDSOMessages();
 
-  // Pre-fill compose form when DSO hits "Reply" from inbox
-  const [replyPreFill, setReplyPreFill] = useState<{
-    recipientId: string;
-    recipientEmail: string;
-    subject: string;
-    threadId: string;
-    parentId: string;
-  } | null>(null);
-
   // ── Stats ─────────────────────────────────────────────────────────────────────
   const templatesUsedRecently = templates.filter(t => t.lastUsed).length;
   const sentMessages = sent;
@@ -83,31 +75,37 @@ export function DSOCommunicationCenter({
     recipientType?: 'individual' | 'bulk' | 'school';
   }) => {
     if (schoolId) {
-      // Real API call
       await sendMessage({
         recipientId: msg.recipientId,
         subject: msg.subject,
         bodyText: msg.body,
         templateRef: msg.templateName,
         recipientType: msg.recipientType ?? 'individual',
-        ...(replyPreFill ? { threadId: replyPreFill.threadId, parentId: replyPreFill.parentId } : {}),
       });
       toast.success('Message sent successfully');
-      setReplyPreFill(null);
       await refresh();
     }
-    // History is now driven by real sent data from useDSOMessages
   };
 
-  const handleReply = (inboxMsg: { id: string; thread_id: string; sender_id: string; sender?: { id: string; full_name: string; email: string } | null; subject: string }) => {
-    setReplyPreFill({
-      recipientId: inboxMsg.sender?.id ?? inboxMsg.sender_id,
-      recipientEmail: inboxMsg.sender?.email ?? '',
-      subject: inboxMsg.subject.startsWith('Re:') ? inboxMsg.subject : `Re: ${inboxMsg.subject}`,
-      threadId: inboxMsg.thread_id,
-      parentId: inboxMsg.id,
+  const handleInlineSend = async (params: {
+    recipientId: string;
+    subject: string;
+    threadId: string;
+    parentId: string;
+    body: string;
+    attachments?: AttachmentData[];
+  }) => {
+    await sendMessage({
+      recipientId: params.recipientId,
+      subject: params.subject,
+      bodyText: params.body,
+      threadId: params.threadId,
+      parentId: params.parentId,
+      recipientType: 'individual',
+      attachments: params.attachments,
     });
-    setSelectedTab('compose');
+    toast.success('Reply sent');
+    await refresh();
   };
 
   const handleUseTemplate = (_template: EmailTemplate) => { setSelectedTab('compose'); };
@@ -216,7 +214,8 @@ export function DSOCommunicationCenter({
           loading={loading}
           error={error}
           onRefresh={refresh}
-          onReply={handleReply}
+          onInlineSend={handleInlineSend}
+          userName={userName}
         />
       )}
       {selectedTab === 'compose' && (
@@ -224,7 +223,6 @@ export function DSOCommunicationCenter({
           templates={templates}
           userName={userName}
           students={students}
-          replyPreFill={replyPreFill}
           onSendAsync={schoolId ? async (payload) => {
             await handleMessageSent({
               recipientId: payload.recipientId,
@@ -265,6 +263,17 @@ interface InboxMessage {
   status: string;
   created_at: string;
   sender?: { id: string; full_name: string; email: string } | null;
+  attachments?: AttachmentData[];
+}
+
+interface ThreadMessage {
+  id: string;
+  sender_id: string;
+  sender_role: string;
+  body: string;
+  created_at: string;
+  sender?: { id: string; full_name: string; email: string } | null;
+  attachments?: AttachmentData[];
 }
 
 interface DSOInboxPanelProps {
@@ -272,11 +281,90 @@ interface DSOInboxPanelProps {
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
-  onReply: (msg: InboxMessage) => void;
+  onInlineSend: (params: {
+    recipientId: string;
+    subject: string;
+    threadId: string;
+    parentId: string;
+    body: string;
+    attachments?: AttachmentData[];
+  }) => Promise<void>;
+  userName: string;
 }
 
-function DSOInboxPanel({ messages, loading, error, onRefresh, onReply }: DSOInboxPanelProps) {
+function DSOInboxPanel({ messages, loading, error, onRefresh, onInlineSend, userName }: DSOInboxPanelProps) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [threads, setThreads] = useState<Record<string, ThreadMessage[]>>({});
+  const [threadLoading, setThreadLoading] = useState<Record<string, boolean>>({});
+  const [replyBody, setReplyBody] = useState<Record<string, string>>({});
+  const [replyAttachments, setReplyAttachments] = useState<Record<string, AttachmentData[]>>({});
+  const [replySending, setReplySending] = useState<Record<string, boolean>>({});
+  const [uploadingFiles, setUploadingFiles] = useState<Record<string, boolean>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [fileInputFor, setFileInputFor] = useState<string | null>(null);
+
+  const handleExpand = async (msg: InboxMessage) => {
+    if (expanded === msg.id) {
+      setExpanded(null);
+      return;
+    }
+    setExpanded(msg.id);
+    if (!threads[msg.thread_id]) {
+      setThreadLoading(prev => ({ ...prev, [msg.id]: true }));
+      try {
+        const result = await getMessageThread(msg.thread_id);
+        setThreads(prev => ({ ...prev, [msg.thread_id]: result as unknown as ThreadMessage[] }));
+      } catch {
+        setThreads(prev => ({ ...prev, [msg.thread_id]: [msg as unknown as ThreadMessage] }));
+      } finally {
+        setThreadLoading(prev => ({ ...prev, [msg.id]: false }));
+      }
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>, msgId: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingFiles(prev => ({ ...prev, [msgId]: true }));
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `attachments/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from('message-attachments').upload(path, file);
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from('message-attachments').getPublicUrl(path);
+      const attachment: AttachmentData = { name: file.name, url: urlData.publicUrl, size: file.size, type: file.type };
+      setReplyAttachments(prev => ({ ...prev, [msgId]: [...(prev[msgId] ?? []), attachment] }));
+    } catch {
+      toast.error('Failed to upload file');
+    } finally {
+      setUploadingFiles(prev => ({ ...prev, [msgId]: false }));
+      e.target.value = '';
+    }
+  };
+
+  const handleSendReply = async (msg: InboxMessage) => {
+    const body = replyBody[msg.id]?.trim();
+    if (!body) return;
+    setReplySending(prev => ({ ...prev, [msg.id]: true }));
+    try {
+      await onInlineSend({
+        recipientId: msg.sender?.id ?? msg.sender_id,
+        subject: msg.subject.startsWith('Re:') ? msg.subject : `Re: ${msg.subject}`,
+        threadId: msg.thread_id,
+        parentId: msg.id,
+        body,
+        attachments: replyAttachments[msg.id],
+      });
+      const result = await getMessageThread(msg.thread_id);
+      setThreads(prev => ({ ...prev, [msg.thread_id]: result as unknown as ThreadMessage[] }));
+      setReplyBody(prev => ({ ...prev, [msg.id]: '' }));
+      setReplyAttachments(prev => ({ ...prev, [msg.id]: [] }));
+    } catch {
+      toast.error('Failed to send reply');
+    } finally {
+      setReplySending(prev => ({ ...prev, [msg.id]: false }));
+    }
+  };
 
   if (loading) {
     return (
@@ -313,11 +401,24 @@ function DSOInboxPanel({ messages, loading, error, onRefresh, onReply }: DSOInbo
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {/* Hidden file input shared across all reply forms */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        style={{ display: 'none' }}
+        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+        onChange={e => { if (fileInputFor) handleFileSelect(e, fileInputFor); }}
+      />
+
       {messages.map(msg => {
-        const isExpanded = expanded === msg.id;
-        const isUnread   = msg.status !== 'read';
-        const senderName = msg.sender?.full_name ?? 'Student';
-        const initials   = senderName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+        const isExpanded  = expanded === msg.id;
+        const isUnread    = msg.status !== 'read';
+        const senderName  = msg.sender?.full_name ?? 'Student';
+        const initials    = senderName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+        const threadMsgs  = threads[msg.thread_id] ?? [];
+        const isLoadingThread = threadLoading[msg.id];
+        const isSending   = replySending[msg.id];
+        const canSend     = !!(replyBody[msg.id]?.trim()) && !isSending;
 
         return (
           <div
@@ -326,7 +427,7 @@ function DSOInboxPanel({ messages, loading, error, onRefresh, onReply }: DSOInbo
           >
             {/* Header row */}
             <button
-              onClick={() => setExpanded(isExpanded ? null : msg.id)}
+              onClick={() => handleExpand(msg)}
               style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', padding: '14px 18px', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}
             >
               <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 600, color: '#fff', flexShrink: 0 }}>
@@ -350,19 +451,96 @@ function DSOInboxPanel({ messages, loading, error, onRefresh, onReply }: DSOInbo
               </svg>
             </button>
 
-            {/* Expanded body */}
+            {/* Expanded: thread + inline reply */}
             {isExpanded && (
-              <div style={{ padding: '0 18px 18px', borderTop: '1px solid #f3f4f6' }}>
-                <p style={{ fontSize: '14px', color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap', margin: '14px 0 16px' }}>
-                  {msg.body}
-                </p>
-                <button
-                  onClick={() => onReply(msg)}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '6px', background: '#2563eb', color: '#fff', border: 'none', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
-                >
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="12" height="12"><path d="M1 8l14-6-5 14-3-5-6-3z"/></svg>
-                  Reply to Student
-                </button>
+              <div style={{ borderTop: '1px solid #f3f4f6' }}>
+                {/* Thread chat bubbles */}
+                {isLoadingThread ? (
+                  <div style={{ padding: '16px 18px', color: '#9ca3af', fontSize: '13px' }}>Loading thread…</div>
+                ) : (
+                  <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {(threadMsgs.length > 0 ? threadMsgs : [msg as unknown as ThreadMessage]).map(tmsg => {
+                      const isDSO = tmsg.sender_role === 'dso' || tmsg.sender_role === 'admin';
+                      const bubbleName = isDSO ? userName : (tmsg.sender?.full_name ?? 'Student');
+                      const bubbleInitials = bubbleName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+                      return (
+                        <div key={tmsg.id} style={{ display: 'flex', flexDirection: isDSO ? 'row-reverse' : 'row', gap: '8px', alignItems: 'flex-start' }}>
+                          <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: isDSO ? '#16a34a' : '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 600, color: '#fff', flexShrink: 0 }}>
+                            {bubbleInitials}
+                          </div>
+                          <div style={{ maxWidth: '72%' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', flexDirection: isDSO ? 'row-reverse' : 'row' }}>
+                              <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#374151' }}>{bubbleName}</span>
+                              <span style={{ fontSize: '11px', color: '#9ca3af' }}>
+                                {new Date(tmsg.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <div style={{ background: isDSO ? '#dcfce7' : '#eff6ff', borderRadius: isDSO ? '12px 2px 12px 12px' : '2px 12px 12px 12px', padding: '9px 13px', fontSize: '13.5px', color: '#1f2937', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                              {tmsg.body}
+                            </div>
+                            {/* Attachment chips */}
+                            {tmsg.attachments && tmsg.attachments.length > 0 && (
+                              <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: isDSO ? 'flex-end' : 'flex-start' }}>
+                                {tmsg.attachments.map((att, ai) => (
+                                  <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer"
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '6px', background: '#f3f4f6', border: '1px solid #e5e7eb', fontSize: '12px', color: '#2563eb', textDecoration: 'none' }}>
+                                    <svg viewBox="0 0 14 14" fill="none" stroke="#2563eb" strokeWidth="1.5" width="11" height="11"><path d="M7 1v7m-2.5-2.5L7 8l2.5-2.5"/><path d="M2 11h10"/></svg>
+                                    {att.name}
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Inline reply form */}
+                <div style={{ padding: '12px 18px 16px', borderTop: '1px solid #f3f4f6', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <textarea
+                    value={replyBody[msg.id] ?? ''}
+                    onChange={e => setReplyBody(prev => ({ ...prev, [msg.id]: e.target.value }))}
+                    placeholder="Write a reply…"
+                    rows={3}
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '7px', border: '1px solid #e5e7eb', fontSize: '13.5px', fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
+                  />
+                  {/* Pending attachment chips */}
+                  {(replyAttachments[msg.id] ?? []).length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                      {(replyAttachments[msg.id] ?? []).map((att, ai) => (
+                        <div key={ai} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '6px', background: '#f3f4f6', border: '1px solid #e5e7eb', fontSize: '12px', color: '#374151' }}>
+                          <svg viewBox="0 0 14 14" fill="none" stroke="#6b7280" strokeWidth="1.5" width="11" height="11"><path d="M7 1v7m-2.5-2.5L7 8l2.5-2.5"/><path d="M2 11h10"/></svg>
+                          {att.name}
+                          <button
+                            onClick={() => setReplyAttachments(prev => ({ ...prev, [msg.id]: (prev[msg.id] ?? []).filter((_, i) => i !== ai) }))}
+                            style={{ border: 'none', background: 'none', padding: '0 0 0 2px', cursor: 'pointer', color: '#9ca3af', fontSize: '14px', lineHeight: 1 }}
+                          >×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button
+                      onClick={() => { setFileInputFor(msg.id); fileInputRef.current?.click(); }}
+                      disabled={uploadingFiles[msg.id]}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '7px 12px', borderRadius: '6px', background: '#f4f5f7', border: '1px solid #e5e7eb', fontSize: '12.5px', color: '#374151', cursor: 'pointer', fontFamily: 'inherit' }}
+                    >
+                      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" width="12" height="12"><path d="M12 9v1.5A1.5 1.5 0 0110.5 12h-7A1.5 1.5 0 012 10.5V9"/><path d="M7 2v7m-2-2.5L7 9l2-2.5"/></svg>
+                      {uploadingFiles[msg.id] ? 'Uploading…' : 'Attach File'}
+                    </button>
+                    <div style={{ flex: 1 }} />
+                    <button
+                      onClick={() => handleSendReply(msg)}
+                      disabled={!canSend}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '6px', background: canSend ? '#2563eb' : '#9ca3af', color: '#fff', border: 'none', fontSize: '13px', fontWeight: 500, cursor: canSend ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
+                    >
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="12" height="12"><path d="M1 8l14-6-5 14-3-5-6-3z"/></svg>
+                      {isSending ? 'Sending…' : 'Send Reply'}
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>

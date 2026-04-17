@@ -220,6 +220,7 @@ export interface Message {
   status: 'sent' | 'delivered' | 'read';
   read_at?: string;
   template_ref?: string;
+  attachments?: Array<{ name: string; url: string; size: number; type: string }>;
   created_at: string;
   updated_at: string;
   sender?: Pick<User, 'id' | 'full_name' | 'email' | 'role'>;
@@ -317,6 +318,7 @@ export interface CreateMessageData {
   subject: string;
   body: string;
   template_ref?: string;
+  attachments?: Array<{ name: string; url: string; size: number; type: string }>;
 }
 
 // ==================== ROSTER IMPORT TYPES ====================

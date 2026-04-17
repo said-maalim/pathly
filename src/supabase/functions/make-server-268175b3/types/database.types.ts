@@ -219,9 +219,9 @@ export interface Message {
   status: 'sent' | 'delivered' | 'read';
   read_at?: string;
   template_ref?: string;
+  attachments?: Array<{ name: string; url: string; size: number; type: string }>;
   created_at: string;
   updated_at: string;
-  // Joined from users table (present when fetched with select)
   sender?: Pick<User, 'id' | 'full_name' | 'email' | 'role'>;
   recipient?: Pick<User, 'id' | 'full_name' | 'email' | 'role'>;
 }
@@ -317,4 +317,5 @@ export interface CreateMessageData {
   subject: string;
   body: string;
   template_ref?: string;
+  attachments?: Array<{ name: string; url: string; size: number; type: string }>;
 }

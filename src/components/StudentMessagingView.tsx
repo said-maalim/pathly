@@ -8,10 +8,11 @@
  * Uses the Pathly inline-style design system (#f4f5f7 bg, DM Sans, white cards).
  */
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useStudentMessages } from '../hooks/useMessages';
-import { sendMessage } from '../services/messaging.service';
+import { sendMessage, AttachmentData } from '../services/messaging.service';
 import type { MessageRecord } from '../services/messaging.service';
+import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -58,17 +59,24 @@ export function StudentMessagingView({ onBack }: StudentMessagingViewProps) {
   const [activePanel, setActivePanel] = useState<'inbox' | 'sent' | 'compose'>('inbox');
   const [replyBody, setReplyBody] = useState('');
   const [replying, setReplying] = useState(false);
+  const [replyAttachments, setReplyAttachments] = useState<AttachmentData[]>([]);
+  const [uploadingReply, setUploadingReply] = useState(false);
+  const replyFileRef = useRef<HTMLInputElement>(null);
 
   // Compose new message
   const [composeSubject, setComposeSubject] = useState('');
   const [composeBody, setComposeBody] = useState('');
   const [sending, setSending] = useState(false);
+  const [composeAttachments, setComposeAttachments] = useState<AttachmentData[]>([]);
+  const [uploadingCompose, setUploadingCompose] = useState(false);
+  const composeFileRef = useRef<HTMLInputElement>(null);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleSelectMessage = (msg: MessageRecord) => {
     setSelectedMsg(msg);
     setReplyBody('');
+    setReplyAttachments([]);
     if (msg.status !== 'read') markRead(msg.id);
   };
 
@@ -84,8 +92,10 @@ export function StudentMessagingView({ onBack }: StudentMessagingViewProps) {
         recipientType: 'school',
         parentId: selectedMsg.id,
         threadId: selectedMsg.thread_id,
+        attachments: replyAttachments,
       });
       setReplyBody('');
+      setReplyAttachments([]);
       toast.success('Reply sent to your DSO');
       await refresh();
     } catch (err) {
@@ -108,9 +118,11 @@ export function StudentMessagingView({ onBack }: StudentMessagingViewProps) {
         subject: composeSubject.trim(),
         bodyText: composeBody.trim(),
         recipientType: 'school',
+        attachments: composeAttachments,
       });
       setComposeSubject('');
       setComposeBody('');
+      setComposeAttachments([]);
       toast.success('Message sent to your DSO');
       setActivePanel('sent');
       await refresh();
@@ -120,6 +132,26 @@ export function StudentMessagingView({ onBack }: StudentMessagingViewProps) {
       });
     } finally {
       setSending(false);
+    }
+  };
+
+  const uploadAttachment = async (
+    file: File,
+    onDone: (att: AttachmentData) => void,
+    setUploading: (v: boolean) => void,
+  ) => {
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `attachments/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error: uploadError } = await supabase.storage.from('message-attachments').upload(path, file);
+      if (uploadError) throw uploadError;
+      const { data: urlData } = supabase.storage.from('message-attachments').getPublicUrl(path);
+      onDone({ name: file.name, url: urlData.publicUrl, size: file.size, type: file.type });
+    } catch {
+      toast.error('Failed to upload file');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -136,6 +168,12 @@ export function StudentMessagingView({ onBack }: StudentMessagingViewProps) {
 
   return (
     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
+
+      {/* Hidden file inputs */}
+      <input ref={composeFileRef} type="file" style={{ display: 'none' }} accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+        onChange={e => { const f = e.target.files?.[0]; if (f) uploadAttachment(f, att => setComposeAttachments(prev => [...prev, att]), setUploadingCompose); e.target.value = ''; }} />
+      <input ref={replyFileRef} type="file" style={{ display: 'none' }} accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+        onChange={e => { const f = e.target.files?.[0]; if (f) uploadAttachment(f, att => setReplyAttachments(prev => [...prev, att]), setUploadingReply); e.target.value = ''; }} />
 
       {/* Header */}
       <div style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '0 24px', height: '56px', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
@@ -271,7 +309,19 @@ export function StudentMessagingView({ onBack }: StudentMessagingViewProps) {
                     onBlur={e => e.currentTarget.style.borderColor = '#d1d5db'}
                   />
                 </div>
-                <div style={{ display: 'flex', gap: '10px', paddingTop: '4px' }}>
+                {/* Compose attachment chips */}
+                {composeAttachments.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {composeAttachments.map((att, i) => (
+                      <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '6px', background: '#f3f4f6', border: '1px solid #e5e7eb', fontSize: '12px', color: '#374151' }}>
+                        <svg viewBox="0 0 14 14" fill="none" stroke="#6b7280" strokeWidth="1.5" width="11" height="11"><path d="M7 1v7m-2.5-2.5L7 8l2.5-2.5"/><path d="M2 11h10"/></svg>
+                        {att.name}
+                        <button onClick={() => setComposeAttachments(prev => prev.filter((_, j) => j !== i))} style={{ border: 'none', background: 'none', padding: '0 0 0 2px', cursor: 'pointer', color: '#9ca3af', fontSize: '14px', lineHeight: 1 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: '10px', paddingTop: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
                   <button
                     onClick={handleSendNew}
                     disabled={sending}
@@ -281,7 +331,15 @@ export function StudentMessagingView({ onBack }: StudentMessagingViewProps) {
                     {sending ? 'Sending…' : 'Send Message'}
                   </button>
                   <button
-                    onClick={() => { setComposeSubject(''); setComposeBody(''); setActivePanel('inbox'); }}
+                    onClick={() => composeFileRef.current?.click()}
+                    disabled={uploadingCompose}
+                    style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '9px 14px', borderRadius: '6px', background: '#f4f5f7', border: '1px solid #e5e7eb', color: '#374151', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" width="12" height="12"><path d="M12 9v1.5A1.5 1.5 0 0110.5 12h-7A1.5 1.5 0 012 10.5V9"/><path d="M7 2v7m-2-2.5L7 9l2-2.5"/></svg>
+                    {uploadingCompose ? 'Uploading…' : 'Attach File'}
+                  </button>
+                  <button
+                    onClick={() => { setComposeSubject(''); setComposeBody(''); setComposeAttachments([]); setActivePanel('inbox'); }}
                     style={{ padding: '9px 16px', borderRadius: '6px', border: '1px solid #e5e7eb', background: '#f4f5f7', color: '#374151', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
                   >
                     Cancel
@@ -323,6 +381,18 @@ export function StudentMessagingView({ onBack }: StudentMessagingViewProps) {
                 <p style={{ fontSize: '14px', color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap', margin: 0 }}>
                   {selectedMsg.body}
                 </p>
+                {/* Attachment chips in message body */}
+                {selectedMsg.attachments && selectedMsg.attachments.length > 0 && (
+                  <div style={{ marginTop: '12px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {selectedMsg.attachments.map((att: AttachmentData, i: number) => (
+                      <a key={i} href={att.url} target="_blank" rel="noopener noreferrer"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 11px', borderRadius: '6px', background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '12.5px', color: '#2563eb', textDecoration: 'none', fontWeight: 500 }}>
+                        <svg viewBox="0 0 14 14" fill="none" stroke="#2563eb" strokeWidth="1.5" width="11" height="11"><path d="M7 1v7m-2.5-2.5L7 8l2.5-2.5"/><path d="M2 11h10"/></svg>
+                        {att.name}
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Reply form */}
@@ -336,11 +406,23 @@ export function StudentMessagingView({ onBack }: StudentMessagingViewProps) {
                   onChange={e => setReplyBody(e.target.value)}
                   placeholder="Type your reply here…"
                   rows={4}
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '13.5px', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.6, marginBottom: '12px' }}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '13.5px', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.6, marginBottom: '10px' }}
                   onFocus={e => e.currentTarget.style.borderColor = '#2563eb'}
                   onBlur={e => e.currentTarget.style.borderColor = '#d1d5db'}
                 />
-                <div style={{ display: 'flex', gap: '10px' }}>
+                {/* Reply attachment chips */}
+                {replyAttachments.length > 0 && (
+                  <div style={{ marginBottom: '10px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {replyAttachments.map((att, i) => (
+                      <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '6px', background: '#f3f4f6', border: '1px solid #e5e7eb', fontSize: '12px', color: '#374151' }}>
+                        <svg viewBox="0 0 14 14" fill="none" stroke="#6b7280" strokeWidth="1.5" width="11" height="11"><path d="M7 1v7m-2.5-2.5L7 8l2.5-2.5"/><path d="M2 11h10"/></svg>
+                        {att.name}
+                        <button onClick={() => setReplyAttachments(prev => prev.filter((_, j) => j !== i))} style={{ border: 'none', background: 'none', padding: '0 0 0 2px', cursor: 'pointer', color: '#9ca3af', fontSize: '14px', lineHeight: 1 }}>×</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
                   <button
                     onClick={handleReply}
                     disabled={replying || !replyBody.trim()}
@@ -350,7 +432,15 @@ export function StudentMessagingView({ onBack }: StudentMessagingViewProps) {
                     {replying ? 'Sending…' : 'Send Reply'}
                   </button>
                   <button
-                    onClick={() => setReplyBody('')}
+                    onClick={() => replyFileRef.current?.click()}
+                    disabled={uploadingReply}
+                    style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '8px 13px', borderRadius: '6px', background: '#f4f5f7', border: '1px solid #e5e7eb', color: '#374151', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" width="12" height="12"><path d="M12 9v1.5A1.5 1.5 0 0110.5 12h-7A1.5 1.5 0 012 10.5V9"/><path d="M7 2v7m-2-2.5L7 9l2-2.5"/></svg>
+                    {uploadingReply ? 'Uploading…' : 'Attach File'}
+                  </button>
+                  <button
+                    onClick={() => { setReplyBody(''); setReplyAttachments([]); }}
                     style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #e5e7eb', background: '#f4f5f7', color: '#374151', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
                   >
                     Clear

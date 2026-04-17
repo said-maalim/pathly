@@ -31,7 +31,7 @@ messagingRoutes.post(
     const senderRole = c.get('userRole') as string;
     const body       = await c.req.json();
 
-    const { recipientId, subject, bodyText, templateRef, recipientType, bulkFilter, parentId, threadId } = body;
+    const { recipientId, subject, bodyText, templateRef, recipientType, bulkFilter, parentId, threadId, attachments } = body;
 
     if (!subject || !bodyText) {
       return c.json({ error: 'Subject and body are required' }, 400);
@@ -46,6 +46,7 @@ messagingRoutes.post(
       bulkFilter,
       parentId,
       threadId,
+      attachments,
     });
 
     return c.json({ success: true, message });
