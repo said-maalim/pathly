@@ -16,6 +16,7 @@ import { studentsRoutes } from './services/students/students.routes.ts';
 import { requestsRoutes } from './services/requests/requests.routes.ts';
 import { documentsRoutes } from './services/documents/documents.routes.ts';
 import { rosterRoutes } from './services/roster/roster.routes.ts';
+import { messagingRoutes } from './services/messaging/messaging.routes.ts';
 
 // Initialize Hono app
 const app = new Hono();
@@ -53,6 +54,7 @@ app.route('/make-server-268175b3/students', studentsRoutes);
 app.route('/make-server-268175b3/requests', requestsRoutes);
 app.route('/make-server-268175b3/documents', documentsRoutes);
 app.route('/make-server-268175b3/roster', rosterRoutes);
+app.route('/make-server-268175b3/messaging', messagingRoutes);
 
 // ==================== ERROR HANDLING ====================
 
