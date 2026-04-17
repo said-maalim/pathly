@@ -7,6 +7,10 @@ import { Context } from 'npm:hono';
 
 export function errorHandler(err: Error, c: Context) {
   console.error('Error:', err);
+
+  // Always set CORS headers so the browser can read the error response
+  c.header('Access-Control-Allow-Origin', '*');
+  c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   
   // Determine status code based on error message
   let status = 500;
