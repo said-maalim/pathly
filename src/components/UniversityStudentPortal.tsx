@@ -14,6 +14,7 @@ import { AllRequestsPage } from './AllRequestsPage';
 import { toast } from 'sonner';
 
 import { StudentMessagingView } from './StudentMessagingView';
+import { useStudentMessages } from '../hooks/useMessages';
 import { useStudentProfile } from '../hooks/useStudentProfile';
 import { useStudentRequests } from '../hooks/useStudentRequests';
 import { useStudentDocuments } from '../hooks/useStudentDocuments';
@@ -74,6 +75,7 @@ export function UniversityStudentPortal({ onNavigate, onLogout, userData }: Univ
   const initials = userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
 
   // ─── Data Hooks ─────────────────────────────────────────────────────────
+  const { unreadCount } = useStudentMessages();
   const { sevisStatus, visaStatus, passportStatus, loading: profileLoading, refresh: refreshProfile } = useStudentProfile();
   const { myRequests, dsoRequests, loading: requestsLoading, refresh: refreshRequests } = useStudentRequests();
   const { documents: recentDocuments, refresh: refreshDocuments } = useStudentDocuments(userId);
@@ -129,7 +131,7 @@ export function UniversityStudentPortal({ onNavigate, onLogout, userData }: Univ
   const NAV_ITEMS: { view: StudentView; icon: React.ReactNode; label: string; badge?: number }[] = [
     { view: 'dashboard', icon: SVG.dashboard, label: 'Dashboard' },
     { view: 'settings', icon: SVG.profile, label: 'My Profile' },
-    { view: 'messaging' as StudentView, icon: SVG.messaging, label: 'Messaging', badge: 2 },
+    { view: 'messaging' as StudentView, icon: SVG.messaging, label: 'Messaging', badge: unreadCount > 0 ? unreadCount : undefined },
     { view: 'all-requests', icon: SVG.allRequests, label: 'All Requests' },
     { view: 'i20-request', icon: SVG.requestCenter, label: 'Request Center' },
   ];
