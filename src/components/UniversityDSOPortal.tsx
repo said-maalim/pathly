@@ -74,6 +74,7 @@ export function UniversityDSOPortal({ onNavigate, onLogout, userData }: Universi
 
   // ─── Data ────────────────────────────────────────────────────────────────────
   const { students, loading, error, refresh: refreshStudents } = useDSOStudents(schoolId);
+  const [messagingUnreadCount, setMessagingUnreadCount] = useState(0);
 
   const mappedStudents = students.map((s) => ({
     ...s,
@@ -137,6 +138,7 @@ export function UniversityDSOPortal({ onNavigate, onLogout, userData }: Universi
             onLogout={onLogout}
             userName={userName}
             schoolId={schoolId}
+            onUnreadCountChange={setMessagingUnreadCount}
             students={mappedStudents.map(s => ({
               id: s.id,
               user_id: (s as any).user_id ?? s.id,
@@ -216,6 +218,7 @@ export function UniversityDSOPortal({ onNavigate, onLogout, userData }: Universi
       userName={userName}
       userInitials={userInitials}
       notificationCount={0}
+      messagingUnreadCount={messagingUnreadCount}
       onLogout={onLogout}
     >
       {/* Loading / error banners */}

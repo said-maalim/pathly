@@ -89,7 +89,22 @@ export function useDSOMessages() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  const markRead = useCallback(async (messageId: string) => {
+    try {
+      await markMessageAsRead(messageId);
+      setInbox(prev =>
+        prev.map(m =>
+          m.id === messageId
+            ? { ...m, status: 'read' as const, read_at: new Date().toISOString() }
+            : m
+        )
+      );
+    } catch {
+      // Silently fail — not critical
+    }
+  }, []);
+
   const unreadCount = inbox.filter(m => m.status !== 'read').length;
 
-  return { inbox, sent, loading, error, refresh, unreadCount };
+  return { inbox, sent, loading, error, refresh, markRead, unreadCount };
 }

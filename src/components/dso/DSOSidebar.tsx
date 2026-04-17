@@ -71,11 +71,15 @@ const UTILITY_NAV: NavItem[] = [
 interface DSOSidebarProps {
   currentView: DSOView;
   onNavigate: (view: DSOView) => void;
+  messagingUnreadCount?: number;
 }
 
-export function DSOSidebar({ currentView, onNavigate }: DSOSidebarProps) {
+export function DSOSidebar({ currentView, onNavigate, messagingUnreadCount }: DSOSidebarProps) {
   const item = ({ label, icon, view }: NavItem) => {
     const active = currentView === view;
+    const badge = view === 'communication-center' && (messagingUnreadCount ?? 0) > 0
+      ? messagingUnreadCount
+      : undefined;
     return (
       <button
         key={view}
@@ -114,7 +118,12 @@ export function DSOSidebar({ currentView, onNavigate }: DSOSidebarProps) {
         <span style={{ opacity: active ? 1 : 0.7, display: 'flex', alignItems: 'center', flexShrink: 0 }}>
           {icon}
         </span>
-        {label}
+        <span style={{ flex: 1 }}>{label}</span>
+        {badge !== undefined && (
+          <span style={{ background: '#dc2626', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '0 5px', borderRadius: '8px', lineHeight: '16px', flexShrink: 0 }}>
+            {badge}
+          </span>
+        )}
       </button>
     );
   };

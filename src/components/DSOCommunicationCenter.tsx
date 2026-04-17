@@ -8,7 +8,7 @@
  *  History  — outbox of messages sent by this DSO (real data via useDSOMessages)
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 import { ComposeEmailPanel } from './communication/ComposeEmailPanel';
 import type { StudentOption } from './communication/ComposeEmailPanel';
@@ -42,6 +42,8 @@ interface DSOCommunicationCenterProps {
   schoolId?: string;
   /** List of students in this school, used in the compose dropdown */
   students?: StudentOption[];
+  /** Called whenever the unread message count changes */
+  onUnreadCountChange?: (count: number) => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -52,13 +54,19 @@ export function DSOCommunicationCenter({
   userName = 'DSO Admin',
   schoolId,
   students = [],
+  onUnreadCountChange,
 }: DSOCommunicationCenterProps) {
 
   const [selectedTab, setSelectedTab] = useState<'inbox' | 'compose' | 'templates' | 'history'>('inbox');
   const [templates, setTemplates] = useState<EmailTemplate[]>(INITIAL_TEMPLATES);
 
   // ── Real data from API ───────────────────────────────────────────────────────
-  const { inbox, sent, loading, error, refresh, unreadCount } = useDSOMessages();
+  const { inbox, sent, loading, error, refresh, markRead, unreadCount } = useDSOMessages();
+
+  // Notify parent whenever unread count changes (for sidebar badge)
+  useEffect(() => {
+    onUnreadCountChange?.(unreadCount);
+  }, [unreadCount, onUnreadCountChange]);
 
   // ── Stats ─────────────────────────────────────────────────────────────────────
   const templatesUsedRecently = templates.filter(t => t.lastUsed).length;
@@ -215,6 +223,7 @@ export function DSOCommunicationCenter({
           error={error}
           onRefresh={refresh}
           onInlineSend={handleInlineSend}
+          onMarkRead={markRead}
           userName={userName}
         />
       )}
@@ -289,10 +298,11 @@ interface DSOInboxPanelProps {
     body: string;
     attachments?: AttachmentData[];
   }) => Promise<void>;
+  onMarkRead: (messageId: string) => void;
   userName: string;
 }
 
-function DSOInboxPanel({ messages, loading, error, onRefresh, onInlineSend, userName }: DSOInboxPanelProps) {
+function DSOInboxPanel({ messages, loading, error, onRefresh, onInlineSend, onMarkRead, userName }: DSOInboxPanelProps) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [threads, setThreads] = useState<Record<string, ThreadMessage[]>>({});
   const [threadLoading, setThreadLoading] = useState<Record<string, boolean>>({});
@@ -309,6 +319,8 @@ function DSOInboxPanel({ messages, loading, error, onRefresh, onInlineSend, user
       return;
     }
     setExpanded(msg.id);
+    // Mark as read immediately when opened
+    if (msg.status !== 'read') onMarkRead(msg.id);
     if (!threads[msg.thread_id]) {
       setThreadLoading(prev => ({ ...prev, [msg.id]: true }));
       try {
@@ -334,8 +346,8 @@ function DSOInboxPanel({ messages, loading, error, onRefresh, onInlineSend, user
       const { data: urlData } = supabase.storage.from('message-attachments').getPublicUrl(path);
       const attachment: AttachmentData = { name: file.name, url: urlData.publicUrl, size: file.size, type: file.type };
       setReplyAttachments(prev => ({ ...prev, [msgId]: [...(prev[msgId] ?? []), attachment] }));
-    } catch {
-      toast.error('Failed to upload file');
+    } catch (err) {
+      toast.error('Upload failed', { description: err instanceof Error ? err.message : String(err) });
     } finally {
       setUploadingFiles(prev => ({ ...prev, [msgId]: false }));
       e.target.value = '';
