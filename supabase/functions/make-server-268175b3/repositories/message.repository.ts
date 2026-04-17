@@ -46,9 +46,9 @@ class MessageRepository {
   }
 
   /**
-   * DSO inbox: all messages sent by students within a school.
-   * Includes both "to DSO office" (recipient_id IS NULL) and
-   * messages addressed to a specific DSO user (recipient_id = dso_user_id).
+   * DSO inbox: latest student message per thread within a school.
+   * Returns one entry per thread_id (the most recent student message),
+   * so each conversation appears only once.
    */
   async findSchoolInbox(schoolId: string): Promise<Message[]> {
     const { data, error } = await this.supabase
@@ -59,7 +59,17 @@ class MessageRepository {
       .order('created_at', { ascending: false });
 
     if (error) throw new Error(`Failed to fetch school inbox: ${error.message}`);
-    return (data || []) as Message[];
+
+    // Deduplicate: one row per thread_id (already sorted latest-first)
+    const seen = new Set<string>();
+    const deduped: Message[] = [];
+    for (const msg of (data || []) as Message[]) {
+      if (!seen.has(msg.thread_id)) {
+        seen.add(msg.thread_id);
+        deduped.push(msg);
+      }
+    }
+    return deduped;
   }
 
   /** Outbox: messages sent by a user (any role) */

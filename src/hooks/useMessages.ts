@@ -87,7 +87,12 @@ export function useDSOMessages() {
     }
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  // Initial load + poll every 30s so new student messages appear automatically
+  useEffect(() => {
+    refresh();
+    const id = setInterval(refresh, 30_000);
+    return () => clearInterval(id);
+  }, [refresh]);
 
   const markRead = useCallback(async (messageId: string) => {
     try {
