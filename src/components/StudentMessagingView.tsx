@@ -10,7 +10,7 @@
 
 import { useState, useRef } from 'react';
 import { useStudentMessages } from '../hooks/useMessages';
-import { sendMessage, AttachmentData } from '../services/messaging.service';
+import { sendMessage, getMessageThread, AttachmentData } from '../services/messaging.service';
 import type { MessageRecord } from '../services/messaging.service';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
@@ -56,6 +56,8 @@ export function StudentMessagingView({ onBack }: StudentMessagingViewProps) {
   const { inbox, sent, loading, error, refresh, markRead, unreadCount } = useStudentMessages();
 
   const [selectedMsg, setSelectedMsg] = useState<MessageRecord | null>(null);
+  const [thread, setThread] = useState<MessageRecord[]>([]);
+  const [threadLoading, setThreadLoading] = useState(false);
   const [activePanel, setActivePanel] = useState<'inbox' | 'sent' | 'compose'>('inbox');
   const [replyBody, setReplyBody] = useState('');
   const [replying, setReplying] = useState(false);
@@ -73,11 +75,21 @@ export function StudentMessagingView({ onBack }: StudentMessagingViewProps) {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleSelectMessage = (msg: MessageRecord) => {
+  const handleSelectMessage = async (msg: MessageRecord) => {
     setSelectedMsg(msg);
     setReplyBody('');
     setReplyAttachments([]);
     if (msg.status !== 'read') markRead(msg.id);
+    setThreadLoading(true);
+    setThread([]);
+    try {
+      const result = await getMessageThread(msg.thread_id);
+      setThread(result.length > 0 ? result : [msg]);
+    } catch {
+      setThread([msg]);
+    } finally {
+      setThreadLoading(false);
+    }
   };
 
   const handleReply = async () => {
@@ -98,6 +110,10 @@ export function StudentMessagingView({ onBack }: StudentMessagingViewProps) {
       setReplyAttachments([]);
       toast.success('Reply sent to your DSO');
       await refresh();
+      if (selectedMsg) {
+        const updated = await getMessageThread(selectedMsg.thread_id);
+        setThread(updated.length > 0 ? updated : thread);
+      }
     } catch (err) {
       toast.error('Failed to send reply', {
         description: err instanceof Error ? err.message : 'Please try again',
@@ -148,8 +164,8 @@ export function StudentMessagingView({ onBack }: StudentMessagingViewProps) {
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from('message-attachments').getPublicUrl(path);
       onDone({ name: file.name, url: urlData.publicUrl, size: file.size, type: file.type });
-    } catch {
-      toast.error('Failed to upload file');
+    } catch (err) {
+      toast.error('Upload failed', { description: err instanceof Error ? err.message : String(err) });
     } finally {
       setUploading(false);
     }
@@ -364,34 +380,45 @@ export function StudentMessagingView({ onBack }: StudentMessagingViewProps) {
                 </span>
               </div>
 
-              {/* Message body */}
-              <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '20px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', paddingBottom: '14px', borderBottom: '1px solid #f3f4f6' }}>
-                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: getAvatarColor(selectedMsg.sender_role), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 600, color: '#fff', flexShrink: 0 }}>
-                    {senderInitials(selectedMsg)}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '13.5px', fontWeight: 600, color: '#111827' }}>{senderLabel(selectedMsg)}</div>
-                    <div style={{ fontSize: '12px', color: '#9ca3af' }}>{selectedMsg.sender?.email ?? 'DSO Office'}</div>
-                  </div>
-                  <div style={{ marginLeft: 'auto', fontSize: '12px', color: '#9ca3af' }}>
-                    {new Date(selectedMsg.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-                  </div>
-                </div>
-                <p style={{ fontSize: '14px', color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap', margin: 0 }}>
-                  {selectedMsg.body}
-                </p>
-                {/* Attachment chips in message body */}
-                {selectedMsg.attachments && selectedMsg.attachments.length > 0 && (
-                  <div style={{ marginTop: '12px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {selectedMsg.attachments.map((att: AttachmentData, i: number) => (
-                      <a key={i} href={att.url} target="_blank" rel="noopener noreferrer"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '5px 11px', borderRadius: '6px', background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '12.5px', color: '#2563eb', textDecoration: 'none', fontWeight: 500 }}>
-                        <svg viewBox="0 0 14 14" fill="none" stroke="#2563eb" strokeWidth="1.5" width="11" height="11"><path d="M7 1v7m-2.5-2.5L7 8l2.5-2.5"/><path d="M2 11h10"/></svg>
-                        {att.name}
-                      </a>
-                    ))}
-                  </div>
+              {/* Thread chat bubbles */}
+              <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {threadLoading ? (
+                  <div style={{ padding: '16px 0', color: '#9ca3af', fontSize: '13px', textAlign: 'center' }}>Loading conversation…</div>
+                ) : (
+                  (thread.length > 0 ? thread : [selectedMsg]).map(tmsg => {
+                    const isStudent = tmsg.sender_role === 'student';
+                    const bubbleName = isStudent ? (tmsg.sender?.full_name ?? 'Me') : (tmsg.sender?.full_name ?? 'DSO Office');
+                    const bubbleInitials = bubbleName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+                    return (
+                      <div key={tmsg.id} style={{ display: 'flex', flexDirection: isStudent ? 'row-reverse' : 'row', gap: '8px', alignItems: 'flex-start' }}>
+                        <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: isStudent ? '#2563eb' : '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 600, color: '#fff', flexShrink: 0 }}>
+                          {bubbleInitials}
+                        </div>
+                        <div style={{ maxWidth: '72%' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', flexDirection: isStudent ? 'row-reverse' : 'row' }}>
+                            <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#374151' }}>{bubbleName}</span>
+                            <span style={{ fontSize: '11px', color: '#9ca3af' }}>
+                              {new Date(tmsg.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <div style={{ background: isStudent ? '#eff6ff' : '#dcfce7', borderRadius: isStudent ? '12px 2px 12px 12px' : '2px 12px 12px 12px', padding: '9px 13px', fontSize: '13.5px', color: '#1f2937', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                            {tmsg.body}
+                          </div>
+                          {tmsg.attachments && tmsg.attachments.length > 0 && (
+                            <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: isStudent ? 'flex-end' : 'flex-start' }}>
+                              {tmsg.attachments.map((att: AttachmentData, ai: number) => (
+                                <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer"
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '6px', background: '#f3f4f6', border: '1px solid #e5e7eb', fontSize: '12px', color: '#2563eb', textDecoration: 'none' }}>
+                                  <svg viewBox="0 0 14 14" fill="none" stroke="#2563eb" strokeWidth="1.5" width="11" height="11"><path d="M7 1v7m-2.5-2.5L7 8l2.5-2.5"/><path d="M2 11h10"/></svg>
+                                  {att.name}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
               </div>
 
