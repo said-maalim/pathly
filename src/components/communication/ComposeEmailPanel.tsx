@@ -37,11 +37,21 @@ interface SendPayload {
     bulkFilter?: Record<string, unknown>;
 }
 
+interface ReplyPreFill {
+    recipientId: string;
+    recipientEmail: string;
+    subject: string;
+    threadId: string;
+    parentId: string;
+}
+
 interface ComposeEmailPanelProps {
     templates: EmailTemplate[];
     userName: string;
     /** List of students for the individual-send dropdown (DSO context) */
     students?: StudentOption[];
+    /** Pre-fills the compose form when replying from the inbox */
+    replyPreFill?: ReplyPreFill | null;
     /**
      * Async send handler that calls the real API.
      * When provided, replaces the local-only onMessageSent call.
@@ -59,13 +69,13 @@ interface ComposeEmailPanelProps {
     }) => void;
 }
 
-export function ComposeEmailPanel({ templates, userName, students, onSendAsync, onMessageSent }: ComposeEmailPanelProps) {
+export function ComposeEmailPanel({ templates, userName, students, replyPreFill, onSendAsync, onMessageSent }: ComposeEmailPanelProps) {
     const [composeMode, setComposeMode] = useState<'individual' | 'bulk'>('individual');
     const [selectedTemplate, setSelectedTemplate] = useState('');
-    const [selectedStudentId, setSelectedStudentId] = useState('');  // student.user_id
-    const [recipient, setRecipient] = useState('');                   // free-form email (no dropdown)
+    const [selectedStudentId, setSelectedStudentId] = useState(() => replyPreFill?.recipientId ?? '');  // student.user_id
+    const [recipient, setRecipient] = useState(() => replyPreFill?.recipientEmail ?? '');              // free-form email (no dropdown)
     const [bulkRecipientGroup, setBulkRecipientGroup] = useState('');
-    const [emailSubject, setEmailSubject] = useState('');
+    const [emailSubject, setEmailSubject] = useState(() => replyPreFill?.subject ?? '');
     const [emailBody, setEmailBody] = useState('');
     const [sending, setSending] = useState(false);
     const [sendError, setSendError] = useState('');
@@ -96,8 +106,9 @@ export function ComposeEmailPanel({ templates, userName, students, onSendAsync, 
         setSendError('');
 
         if (composeMode === 'individual') {
-            const recipientEmail = useStudentDropdown ? (selectedStudent?.email ?? '') : recipient;
-            const recipientId    = useStudentDropdown ? selectedStudentId : undefined;
+            // If replying, use the pre-filled recipient; otherwise use the dropdown/free-form field
+            const recipientId    = replyPreFill?.recipientId ?? (useStudentDropdown ? selectedStudentId : undefined);
+            const recipientEmail = replyPreFill?.recipientEmail ?? (useStudentDropdown ? (selectedStudent?.email ?? '') : recipient);
 
             if ((!recipientId && !recipient) || !emailSubject || !emailBody) {
                 setSendError('Please fill in all fields.');

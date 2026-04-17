@@ -224,6 +224,7 @@ export function DSOCommunicationCenter({
           templates={templates}
           userName={userName}
           students={students}
+          replyPreFill={replyPreFill}
           onSendAsync={schoolId ? async (payload) => {
             await handleMessageSent({
               recipientId: payload.recipientId,
