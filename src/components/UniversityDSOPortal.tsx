@@ -74,6 +74,7 @@ export function UniversityDSOPortal({ onNavigate, onLogout, userData }: Universi
 
   // ─── Data ────────────────────────────────────────────────────────────────────
   const { students, loading, error, refresh: refreshStudents } = useDSOStudents(schoolId);
+  const [messagingUnreadCount, setMessagingUnreadCount] = useState(0);
 
   const mappedStudents = students.map((s) => ({
     ...s,
@@ -131,7 +132,21 @@ export function UniversityDSOPortal({ onNavigate, onLogout, userData }: Universi
         return <DSORequestCenter onBack={() => navigateTo('dashboard')} onLogout={onLogout} userName={userName} userData={userData} />;
 
       case 'communication-center':
-        return <DSOCommunicationCenter onBack={() => navigateTo('dashboard')} onLogout={onLogout} userName={userName} />;
+        return (
+          <DSOCommunicationCenter
+            onBack={() => navigateTo('dashboard')}
+            onLogout={onLogout}
+            userName={userName}
+            schoolId={schoolId}
+            onUnreadCountChange={setMessagingUnreadCount}
+            students={mappedStudents.map(s => ({
+              id: s.id,
+              user_id: (s as any).user_id ?? s.id,
+              name: s.name,
+              email: s.email,
+            }))}
+          />
+        );
 
       case 'student-center':
         return (
@@ -203,6 +218,7 @@ export function UniversityDSOPortal({ onNavigate, onLogout, userData }: Universi
       userName={userName}
       userInitials={userInitials}
       notificationCount={0}
+      messagingUnreadCount={messagingUnreadCount}
       onLogout={onLogout}
     >
       {/* Loading / error banners */}

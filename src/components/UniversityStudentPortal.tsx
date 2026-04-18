@@ -13,6 +13,8 @@ import { DSORequestsSection } from './DSORequestsSection';
 import { AllRequestsPage } from './AllRequestsPage';
 import { toast } from 'sonner';
 
+import { StudentMessagingView } from './StudentMessagingView';
+import { useStudentMessages } from '../hooks/useMessages';
 import { useStudentProfile } from '../hooks/useStudentProfile';
 import { useStudentRequests } from '../hooks/useStudentRequests';
 import { useStudentDocuments } from '../hooks/useStudentDocuments';
@@ -73,6 +75,7 @@ export function UniversityStudentPortal({ onNavigate, onLogout, userData }: Univ
   const initials = userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
 
   // ─── Data Hooks ─────────────────────────────────────────────────────────
+  const { unreadCount } = useStudentMessages();
   const { sevisStatus, visaStatus, passportStatus, loading: profileLoading, refresh: refreshProfile } = useStudentProfile();
   const { myRequests, dsoRequests, loading: requestsLoading, refresh: refreshRequests } = useStudentRequests();
   const { documents: recentDocuments, refresh: refreshDocuments } = useStudentDocuments(userId);
@@ -128,7 +131,7 @@ export function UniversityStudentPortal({ onNavigate, onLogout, userData }: Univ
   const NAV_ITEMS: { view: StudentView; icon: React.ReactNode; label: string; badge?: number }[] = [
     { view: 'dashboard', icon: SVG.dashboard, label: 'Dashboard' },
     { view: 'settings', icon: SVG.profile, label: 'My Profile' },
-    { view: 'messaging' as StudentView, icon: SVG.messaging, label: 'Messaging', badge: 2 },
+    { view: 'messaging' as StudentView, icon: SVG.messaging, label: 'Messaging', badge: unreadCount > 0 ? unreadCount : undefined },
     { view: 'all-requests', icon: SVG.allRequests, label: 'All Requests' },
     { view: 'i20-request', icon: SVG.requestCenter, label: 'Request Center' },
   ];
@@ -146,6 +149,8 @@ export function UniversityStudentPortal({ onNavigate, onLogout, userData }: Univ
         return <ResourcesPage onBack={() => setCurrentView('dashboard')} />;
       case 'all-requests':
         return <AllRequestsPage onBack={() => setCurrentView('dashboard')} studentRequests={myRequests} dsoRequests={dsoRequests} onViewStudentRequest={() => setCurrentView('i20-tracker')} onViewDSORequest={(r) => console.log('View DSO request:', r)} />;
+      case 'messaging':
+        return <StudentMessagingView onBack={() => setCurrentView('dashboard')} />;
       default:
         return null;
     }
@@ -457,7 +462,7 @@ export function UniversityStudentPortal({ onNavigate, onLogout, userData }: Univ
             <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', overflow: 'hidden' }}>
               <div style={{ padding: '14px 18px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>Messaging</span>
-                <a style={{ fontSize: '12.5px', color: '#2563eb', fontWeight: 500, cursor: 'pointer' }}>View all</a>
+                <a onClick={() => setCurrentView('messaging')} style={{ fontSize: '12.5px', color: '#2563eb', fontWeight: 500, cursor: 'pointer' }}>View all</a>
               </div>
               <div style={{ padding: '18px' }}>
                 {/* Sample messages - connected to real data when available */}
@@ -478,7 +483,9 @@ export function UniversityStudentPortal({ onNavigate, onLogout, userData }: Univ
                     </div>
                   </div>
                 ))}
-                <button style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', marginTop: '14px', padding: '9px 14px', borderRadius: '6px', background: '#f4f5f7', border: '1px solid #e5e7eb', fontSize: '13px', fontWeight: 500, cursor: 'pointer', color: '#111827', fontFamily: 'inherit', justifyContent: 'center' }}
+                <button
+                  onClick={() => setCurrentView('messaging')}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', width: '100%', marginTop: '14px', padding: '9px 14px', borderRadius: '6px', background: '#f4f5f7', border: '1px solid #e5e7eb', fontSize: '13px', fontWeight: 500, cursor: 'pointer', color: '#111827', fontFamily: 'inherit', justifyContent: 'center' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#e9eaec'} onMouseLeave={e => e.currentTarget.style.background = '#f4f5f7'}>
                   {SVG.messaging} Message your DSO
                 </button>

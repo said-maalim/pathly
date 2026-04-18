@@ -205,6 +205,28 @@ export interface Notification {
   created_at: string;
 }
 
+export interface Message {
+  id: string;
+  school_id: string;
+  thread_id: string;
+  parent_id?: string;
+  sender_id: string;
+  sender_role: 'student' | 'dso' | 'admin';
+  recipient_id?: string;
+  recipient_type: 'individual' | 'bulk' | 'school';
+  bulk_filter?: Record<string, any>;
+  subject: string;
+  body: string;
+  status: 'sent' | 'delivered' | 'read';
+  read_at?: string;
+  template_ref?: string;
+  attachments?: Array<{ name: string; url: string; size: number; type: string }>;
+  created_at: string;
+  updated_at: string;
+  sender?: Pick<User, 'id' | 'full_name' | 'email' | 'role'>;
+  recipient?: Pick<User, 'id' | 'full_name' | 'email' | 'role'>;
+}
+
 // ==================== CREATE/UPDATE TYPES ====================
 
 export interface CreateUserData {
@@ -282,6 +304,21 @@ export interface CreateAuditLogData {
   old_values?: Record<string, any>;
   new_values?: Record<string, any>;
   metadata?: Record<string, any>;
+}
+
+export interface CreateMessageData {
+  school_id: string;
+  thread_id?: string;
+  parent_id?: string;
+  sender_id: string;
+  sender_role: string;
+  recipient_id?: string | null;
+  recipient_type?: 'individual' | 'bulk' | 'school';
+  bulk_filter?: Record<string, any>;
+  subject: string;
+  body: string;
+  template_ref?: string;
+  attachments?: Array<{ name: string; url: string; size: number; type: string }>;
 }
 
 // ==================== ROSTER IMPORT TYPES ====================

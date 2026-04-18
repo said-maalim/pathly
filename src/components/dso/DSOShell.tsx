@@ -14,6 +14,7 @@ interface DSOShellProps {
   userName: string;
   userInitials: string;
   notificationCount?: number;
+  messagingUnreadCount?: number;
   onLogout: () => void;
 }
 
@@ -24,12 +25,13 @@ export function DSOShell({
   userName,
   userInitials,
   notificationCount,
+  messagingUnreadCount,
   onLogout,
 }: DSOShellProps) {
   return (
     <div className="flex h-screen bg-[#F5F7FA] overflow-hidden">
       {/* Left Sidebar — always visible */}
-      <DSOSidebar currentView={currentView} onNavigate={onNavigate} />
+      <DSOSidebar currentView={currentView} onNavigate={onNavigate} messagingUnreadCount={messagingUnreadCount} />
 
       {/* Right content pane */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
