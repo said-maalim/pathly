@@ -1018,8 +1018,12 @@ WHERE s.deleted_at IS NULL AND u.deleted_at IS NULL;
 
 
 -- View: Request summary with student details
+-- NOTE: PostgreSQL materializes the column list at view-creation time,
+-- so even though the source uses r.*, dropping a column from
+-- public.requests requires rebuilding this view in the same migration.
+-- See: supabase/migrations/20260511040000_drop_requests_uploaded_files.sql
 CREATE OR REPLACE VIEW request_summaries AS
-SELECT 
+SELECT
   r.*,
   s.user_id,
   u.full_name AS student_name,
