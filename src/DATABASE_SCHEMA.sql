@@ -418,8 +418,7 @@ CREATE TABLE responses (
   
   -- Response data
   response_data JSONB DEFAULT '{}',  -- Form data or confirmation
-  document_url TEXT,  -- URL if document was uploaded
-  document_id UUID,  -- Reference to documents table (if applicable)
+  document_id UUID REFERENCES documents(id) ON DELETE SET NULL,  -- Optional document attachment
   
   -- Status
   status VARCHAR(50) DEFAULT 'submitted',

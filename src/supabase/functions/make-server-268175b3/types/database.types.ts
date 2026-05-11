@@ -134,7 +134,6 @@ export interface Response {
   student_id: string;
   school_id: string;
   response_data?: Record<string, any>;
-  document_url?: string;
   document_id?: string;
   status: string;
   reviewed_by?: string;
