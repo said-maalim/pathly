@@ -1,10 +1,10 @@
 # Spec: Data-Model Cleanup — Drop `kv_store_268175b3`, Dedupe File Storage
 
-**Status:** Phase A + C shipped (commits `8372661`, `9d184d5`); Phase B simplified after pre-flight recon — see [Recon Update](#recon-update-2026-05-11) below
+**Status:** All four migrations applied to the linked Supabase project on 2026-05-11; all spec success criteria pass. Application surfaced two anomalies — see [Application Notes](#application-notes-2026-05-11).
 **Owner:** Said Maalim
 **Branch:** `u/saidmaalim/data-model-cleanup`
 **Created:** 2026-05-11
-**Last updated:** 2026-05-11
+**Last updated:** 2026-05-11 (post-application)
 
 ---
 
@@ -80,6 +80,62 @@ live data source.
   scope** for this spec. New open question (#6) tracks it as a
   follow-up: should we wire uploads through Supabase Storage +
   `documents` table, or remove the file-picker UI until we do?
+
+---
+
+## Application Notes (2026-05-11)
+
+Applied the four migrations against the linked Supabase project
+via `scripts/db-tool.mjs` (a one-off operator script written for
+this work — backup, state, apply, verify subcommands). Two
+anomalies surfaced that the pre-flight recon hadn't caught:
+
+### Anomaly 1: `request_summaries` view blocked the column drop
+The original Phase B migration `DROP COLUMN uploaded_files`
+failed with `cannot drop column uploaded_files of table requests
+because other objects depend on it`. The dependent object was
+`public.request_summaries`, a denormalized DSO-facing view
+defined in `src/DATABASE_SCHEMA.sql:1021` that selects
+`r.uploaded_files`.
+
+The view's source SQL uses `r.*` (which would self-update), but
+PostgreSQL materializes the view's column list at create-time,
+so the live view explicitly held `uploaded_files`. Code recon
+had grep'd for `uploaded_files` literally and missed the view
+because it only mentions the column transitively.
+
+**Fix:** rewrote the Phase B migration to `DROP VIEW IF EXISTS
+request_summaries → ALTER TABLE DROP COLUMN → CREATE OR REPLACE
+VIEW` (without the column) → `GRANT` back the original
+permissions. Added a comment near the view definition in
+`DATABASE_SCHEMA.sql` warning future migrations about the
+materialization gotcha.
+
+### Anomaly 2: `kv_store_268175b3` had 319 rows of historical data
+The schema audit assumed this table was "auto-generated scratch"
+with no contents. Pre-application state query showed **319 rows**
+with key prefixes that look like a previous storage layer:
+169 `user:*`, 87 `visa:*`, 21 `sevis:*`, 14 `request:*`,
+13 `requestaction:*`, 9 `response:*`, 4 `document:*`.
+
+Cross-table ID comparison confirmed **zero overlap** between
+kv_store user IDs and the current `users.id` set — this was a
+parallel, disjoint dataset, not a stale duplicate. Most likely
+explanation: legacy test/seed data from when the app used the
+Hono-edge-function-with-KV-store pattern, abandoned in place
+when the relational schema was introduced.
+
+**Disposition:** captured all 319 rows in a local logical
+backup (`backups/pre-migration-2026-05-11T23-09-57-856Z.json`,
+gitignored), then dropped the table. No production reads, no
+relational-table overlap, no current code path uses it.
+
+### Implication for the audit assumption set
+The "no external readers" sign-off (T1) was correct as stated,
+but the spec implicitly conflated *no readers* with *no data
+worth preserving*. Future deprecations should always run a
+row-count query before drop, even when readers are confirmed
+absent.
 
 ---
 
@@ -243,6 +299,8 @@ Phase B reduces to single-pass removal.
 - ~~*Orphaned `responses.document_id` values.*~~ N/A after recon — table is empty.
 - *Two-supabase-tree drift.* If anything under `src/supabase/` is somehow live, refactors in `supabase/` won't catch it. Mitigation in this branch: every code change touches both copies. Pre-flight: confirm Vite/Deno entry point only loads from `supabase/`, not `src/supabase/`.
 - *Future file-upload feature work.* Anyone implementing the wired-up version (open question #6) must touch `documents` directly — there is no longer a `uploaded_files` column to fall back to. This is intentional; the dead column was the bug.
+- *(Realized 2026-05-11)* **View dependencies invisible to literal grep.** The `request_summaries` view selected `r.uploaded_files` via `r.*`; the column name never appeared literally in the view's source SQL, so the code-recon grep missed it. Surfaced only when the DROP COLUMN failed. Future cleanups: query `pg_depend` / `information_schema.view_column_usage` before any DROP COLUMN, in addition to grep.
+- *(Realized 2026-05-11)* **Row count divergence from "dead table" assumption.** kv_store_268175b3 was assumed empty by the audit but held 319 rows of historical data. Future deprecations should always confirm row counts before drop, even when readers are confirmed absent.
 
 ---
 
