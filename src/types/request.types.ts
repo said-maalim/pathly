@@ -15,7 +15,6 @@ export interface RequestRecord {
     request_name: string;
     reason?: string;
     form_data?: Record<string, unknown>;
-    uploaded_files?: unknown[];
     status: RequestStatus;
     priority: RequestPriority;
     submitted_at: string;

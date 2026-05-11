@@ -295,8 +295,7 @@ CREATE TABLE requests (
   
   -- Request data
   form_data JSONB DEFAULT '{}',
-  uploaded_files JSONB DEFAULT '[]',  -- Array of file references
-  
+
   -- Status & priority
   status request_status DEFAULT 'pending',
   priority request_priority DEFAULT 'Normal',

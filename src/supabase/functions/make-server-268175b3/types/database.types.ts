@@ -83,7 +83,6 @@ export interface Request {
   request_name: string;
   reason?: string;
   form_data?: Record<string, any>;
-  uploaded_files?: any[];
   status: RequestStatus;
   priority: RequestPriority;
   submitted_at: string;
@@ -240,7 +239,6 @@ export interface CreateRequestData {
   request_name: string;
   reason?: string;
   form_data?: Record<string, any>;
-  uploaded_files?: any[];
   priority?: RequestPriority;
   due_date?: string;
 }

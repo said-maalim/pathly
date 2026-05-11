@@ -21,18 +21,17 @@ requestsRoutes.post('/submit', requireRole(['student']), asyncHandler(async (c) 
   const userId = c.get('userId');
   const body = await c.req.json();
   
-  const { requestType, requestName, reason, formData, uploadedFiles, priority } = body;
-  
+  const { requestType, requestName, reason, formData, priority } = body;
+
   if (!requestType || !requestName) {
     return c.json({ error: 'Request type and name are required' }, 400);
   }
-  
+
   const request = await requestsService.submitRequest(userId, {
     requestType,
     requestName,
     reason,
     formData,
-    uploadedFiles,
     priority
   });
   

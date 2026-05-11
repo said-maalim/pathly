@@ -16,7 +16,6 @@ export class RequestsService {
     requestName: string;
     reason?: string;
     formData?: Record<string, any>;
-    uploadedFiles?: any[];
     priority?: string;
   }) {
     // Get student profile
@@ -37,7 +36,6 @@ export class RequestsService {
       request_name: data.requestName,
       reason: data.reason,
       form_data: data.formData,
-      uploaded_files: data.uploadedFiles,
       priority: (data.priority as any) || 'Normal',
       due_date: dueDate.toISOString()
     };

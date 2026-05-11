@@ -112,7 +112,7 @@ export function DSORequestCenter({ onBack, onLogout, userName = 'DSO Admin', use
           submittedDate: (req.submitted_at || req.submittedAt || new Date().toISOString()).split('T')[0],
           dueDate: (req.due_date || req.dueDate || new Date(Date.now() + 14 * 86400000).toISOString()).split('T')[0],
           details: req.form_data || req.formData || { reason: req.reason },
-          documents: req.uploaded_files || req.uploadedFiles || [],
+          documents: [],
           internalNotes: req.internal_notes || req.internalNotes ? [req.internal_notes || req.internalNotes] : [],
         }));
         setBackendRequests(transformed);
