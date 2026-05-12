@@ -4,13 +4,14 @@
  * Remaining four SettingsPage sections bundled in one file to avoid
  * creating many tiny files for purely static or near-static content.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Globe, Calendar, Download, Trash2, Building2, Save } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Alert, AlertDescription } from '../ui/alert';
 import { AlertTriangle } from 'lucide-react';
+import { useStudentProfile } from '../../hooks/useStudentProfile';
 
 const INPUT_CLS = 'w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2A73E8]';
 const SELECT_CLS = `${INPUT_CLS} appearance-none`;
@@ -19,87 +20,117 @@ const TOGGLE_CLS = 'w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring
 
 // ─── Immigration & Student Info ───────────────────────────────────────────────
 
-interface ImmigrationData {
-    visaType: string; sevisId: string; degreeLevel: string; major: string;
-    yearOfStudy: string; academicStatus: string; expectedGraduation: string; campus: string;
-}
-const IMMI_DEFAULT: ImmigrationData = {
-    visaType: 'F-1', sevisId: 'N0012345678', degreeLevel: 'Masters', major: 'Computer Science',
-    yearOfStudy: '2nd Year', academicStatus: 'Active', expectedGraduation: '2026-05-15', campus: 'Main Campus',
-};
-
+/**
+ * Locked fields (visa type, SEVIS ID, status enums) come from the
+ * student row and are set by the DSO via roster import or manual
+ * edit. The student can request review but can't edit directly.
+ *
+ * year_of_study / academic_status / expected_graduation_date /
+ * campus have no public.students columns yet — left as form-only
+ * placeholders with a note.
+ */
 export function ImmigrationSection() {
-    const [data, setData] = useState<ImmigrationData>(IMMI_DEFAULT);
-    const set =
-        (key: keyof ImmigrationData) =>
-            (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
-                setData(p => ({ ...p, [key]: e.target.value }));
+    const { student, loading } = useStudentProfile();
+
+    const visaType = student?.visa_type ?? '';
+    const sevisId = student?.sevis_id ?? '';
+    const degreeLevel = student?.degree_level ?? '';
+    const major = student?.major ?? '';
+
+    const [yearOfStudy, setYearOfStudy] = useState('');
+    const [academicStatus, setAcademicStatus] = useState('');
+    const [expectedGraduation, setExpectedGraduation] = useState('');
+    const [campus, setCampus] = useState('');
+
+    useEffect(() => {
+        // Reset transient form fields when the student record loads.
+        // Currently nothing to prefill (no DB columns yet).
+        if (student) {
+            setYearOfStudy('');
+            setAcademicStatus('');
+            setExpectedGraduation('');
+            setCampus(student.program_of_study ?? '');
+        }
+    }, [student]);
 
     return (
         <div className="space-y-6">
             <div>
                 <h2 className="text-gray-900 mb-2">Immigration &amp; Student Information</h2>
-                <p className="text-gray-600">Manage your visa and academic status details.</p>
+                <p className="text-gray-600">Visa and academic status details.</p>
             </div>
             <Alert className="border-blue-200 bg-blue-50">
                 <AlertTriangle className="h-4 w-4 text-blue-600" />
                 <AlertDescription className="text-blue-800">
-                    Some fields require DSO approval. You may submit a review request for changes.
+                    Locked fields (visa type, SEVIS ID, degree level, major) are managed by your DSO. Submit a review request below to ask for changes.
                 </AlertDescription>
             </Alert>
             <Card className="shadow-sm border-0">
                 <CardContent className="pt-6">
+                    {loading ? (
+                        <div className="text-center py-8 text-gray-500">Loading immigration record…</div>
+                    ) : (
+                    <>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label className="block text-gray-700 mb-2">Visa Type</label>
                             <div className="relative">
-                                <select value={data.visaType} disabled className={`${LOCKED_CLS} appearance-none`}>
-                                    <option>F-1</option><option>J-1</option><option>M-1</option>
-                                </select>
+                                <input type="text" value={visaType} disabled className={LOCKED_CLS} placeholder="Not set" />
                                 <Badge className="absolute right-2 top-2 bg-gray-200 text-gray-700 hover:bg-gray-200">Locked</Badge>
                             </div>
                         </div>
                         <div>
                             <label className="block text-gray-700 mb-2">SEVIS ID</label>
                             <div className="relative">
-                                <input type="text" value={data.sevisId} disabled className={LOCKED_CLS} />
+                                <input type="text" value={sevisId} disabled className={LOCKED_CLS} placeholder="Not set" />
                                 <Badge className="absolute right-2 top-2 bg-gray-200 text-gray-700 hover:bg-gray-200">Locked</Badge>
                             </div>
                         </div>
                         <div>
                             <label className="block text-gray-700 mb-2">Degree Level</label>
-                            <select value={data.degreeLevel} onChange={set('degreeLevel')} className={SELECT_CLS}>
-                                <option>Bachelors</option><option>Masters</option><option>PhD</option><option>Certificate</option>
-                            </select>
+                            <div className="relative">
+                                <input type="text" value={degreeLevel} disabled className={LOCKED_CLS} placeholder="Not set" />
+                                <Badge className="absolute right-2 top-2 bg-gray-200 text-gray-700 hover:bg-gray-200">Locked</Badge>
+                            </div>
                         </div>
                         <div>
                             <label className="block text-gray-700 mb-2">Major</label>
-                            <input type="text" value={data.major} onChange={set('major')} className={INPUT_CLS} />
+                            <div className="relative">
+                                <input type="text" value={major} disabled className={LOCKED_CLS} placeholder="Not set" />
+                                <Badge className="absolute right-2 top-2 bg-gray-200 text-gray-700 hover:bg-gray-200">Locked</Badge>
+                            </div>
                         </div>
                         <div>
                             <label className="block text-gray-700 mb-2">Year of Study</label>
-                            <select value={data.yearOfStudy} onChange={set('yearOfStudy')} className={SELECT_CLS}>
+                            <select value={yearOfStudy} onChange={e => setYearOfStudy(e.target.value)} className={SELECT_CLS}>
+                                <option value="">Not set</option>
                                 <option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option><option>5th Year+</option>
                             </select>
                         </div>
                         <div>
                             <label className="block text-gray-700 mb-2">Academic Status</label>
-                            <select value={data.academicStatus} onChange={set('academicStatus')} className={SELECT_CLS}>
+                            <select value={academicStatus} onChange={e => setAcademicStatus(e.target.value)} className={SELECT_CLS}>
+                                <option value="">Not set</option>
                                 <option>Active</option><option>OPT</option><option>STEM OPT</option><option>Completed</option><option>Transferred</option>
                             </select>
                         </div>
                         <div>
                             <label className="block text-gray-700 mb-2">Expected Graduation Date</label>
-                            <input type="date" value={data.expectedGraduation} onChange={set('expectedGraduation')} className={INPUT_CLS} />
+                            <input type="date" value={expectedGraduation} onChange={e => setExpectedGraduation(e.target.value)} className={INPUT_CLS} />
                         </div>
                         <div>
-                            <label className="block text-gray-700 mb-2">Campus / School</label>
-                            <input type="text" value={data.campus} onChange={set('campus')} className={INPUT_CLS} />
+                            <label className="block text-gray-700 mb-2">Program of Study</label>
+                            <input type="text" value={campus} onChange={e => setCampus(e.target.value)} className={INPUT_CLS} placeholder="Not set" />
                         </div>
                     </div>
                     <div className="flex gap-3 mt-6 pt-6 border-t border-gray-200">
-                        <Button className="bg-[#2A73E8] hover:bg-[#1557b0]">Request Profile Update Review</Button>
+                        <Button className="bg-[#2A73E8] hover:bg-[#1557b0]" disabled>Request Profile Update Review</Button>
                     </div>
+                    <p className="text-xs text-gray-500 mt-3">
+                        Year of Study, Academic Status, and Expected Graduation Date have no DB columns yet — they'll be wired when those columns are added to public.students. The review-request workflow isn't wired either.
+                    </p>
+                    </>
+                    )}
                 </CardContent>
             </Card>
         </div>
