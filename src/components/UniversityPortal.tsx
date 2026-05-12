@@ -145,10 +145,6 @@ export function UniversityPortal({ onNavigate }: UniversityPortalProps) {
                     <div className="w-1.5 h-1.5 rounded-full bg-[#2A73E8]"></div>
                     <span>Upload required documents</span>
                   </div>
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#2A73E8]"></div>
-                    <span>Chat with AI assistant Lexi</span>
-                  </div>
                 </div>
               </CardContent>
             </Card>

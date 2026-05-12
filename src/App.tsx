@@ -24,11 +24,7 @@ import { UniversityDSOPortal } from './components/UniversityDSOPortal';
 import { UniversityChoice } from './components/UniversityChoice';
 import { StudentAuth } from './components/StudentAuth';
 import { DSOAuth } from './components/DSOAuth';
-import { AskLexiPage } from './components/AskLexiPage';
 import { RequestCenterPage } from './components/RequestCenterPage';
-import { IntegrationTest } from './components/IntegrationTest';
-import { QuickTest } from './components/QuickTest';
-import CleanupUtility from './CleanupUtility';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 // ─── Page-key → URL path mapping ──────────────────────────────────────────────
@@ -42,11 +38,7 @@ const PAGE_PATHS: Record<string, string> = {
   'student-portal': '/student-portal',
   'dso-portal': '/dso-portal',
   university: '/university',
-  'ask-lexi': '/ask-lexi',
   'request-center': '/request-center',
-  'quick-test': '/quick-test',
-  'integration-test': '/integration-test',
-  'cleanup-utility': '/cleanup-utility',
 };
 
 // ─── Inner router component (must be inside BrowserRouter to use useNavigate) ─
@@ -100,18 +92,6 @@ function RouterApp() {
           element={<UniversityPortal onNavigate={navigate} />}
         />
         <Route
-          path="/quick-test"
-          element={<QuickTest onNavigate={navigate} />}
-        />
-        <Route
-          path="/integration-test"
-          element={<IntegrationTest onBack={() => navigate('landing')} />}
-        />
-        <Route
-          path="/cleanup-utility"
-          element={<CleanupUtility />}
-        />
-        <Route
           path="/request-center"
           element={
             <RequestCenterPage
@@ -120,16 +100,6 @@ function RouterApp() {
             />
           }
         />
-        <Route
-          path="/ask-lexi"
-          element={
-            <AskLexiPage
-              onBack={() => navigate('student-portal')}
-              userName={userName}
-            />
-          }
-        />
-
         {/* ── Protected routes ────────────────────────────────────────────── */}
         <Route
           path="/student-portal"

@@ -23,9 +23,6 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
               <a href="#home" className="text-gray-700 hover:text-[#2A73E8] transition-colors">Home</a>
               <a href="#features" className="text-gray-700 hover:text-[#2A73E8] transition-colors">Features</a>
               <a href="#benefits" className="text-gray-700 hover:text-[#2A73E8] transition-colors">Benefits</a>
-              <Button variant="outline" className="text-[#2A73E8] border-[#2A73E8]" onClick={() => onNavigate('quick-test')}>
-                🧪 Quick Test
-              </Button>
               <Button className="bg-[#2A73E8] hover:bg-[#1557b0] text-white" onClick={() => onNavigate('university-choice')}>
                 Access Portal
               </Button>
@@ -115,8 +112,7 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
               { icon: Globe, title: 'Document Verification', desc: 'Streamlined document review and approval workflows for DSOs' },
               { icon: MessageSquare, title: 'Communication Hub', desc: 'Built-in messaging system with email templates and history' },
               { icon: CheckCircle2, title: 'Student Portal', desc: 'Self-service portal for students to submit requests and track status' },
-              { icon: Shield, title: 'Secure Storage', desc: 'Encrypted document storage with role-based access control' },
-              { icon: CheckCircle2, title: 'AI Assistant', desc: 'Lexi provides 24/7 answers to common immigration questions' }
+              { icon: Shield, title: 'Secure Storage', desc: 'Encrypted document storage with role-based access control' }
             ].map((feature, idx) => (
               <div key={idx} className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
                 <div className="w-12 h-12 bg-[#2A73E8]/10 rounded-lg flex items-center justify-center mb-4">
@@ -210,12 +206,6 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
       <footer className="bg-gray-50 border-t border-gray-200 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center text-gray-600">
           <p>© 2025 Pathly. Trusted by international offices nationwide.</p>
-          <button 
-            onClick={() => onNavigate('cleanup-utility')}
-            className="mt-4 text-sm text-gray-400 hover:text-[#2A73E8] underline"
-          >
-            🔧 Cleanup Utility (Dev)
-          </button>
         </div>
       </footer>
     </div>
