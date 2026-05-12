@@ -25,9 +25,6 @@ import { UniversityChoice } from './components/UniversityChoice';
 import { StudentAuth } from './components/StudentAuth';
 import { DSOAuth } from './components/DSOAuth';
 import { RequestCenterPage } from './components/RequestCenterPage';
-import { IntegrationTest } from './components/IntegrationTest';
-import { QuickTest } from './components/QuickTest';
-import CleanupUtility from './CleanupUtility';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 // ─── Page-key → URL path mapping ──────────────────────────────────────────────
@@ -42,9 +39,6 @@ const PAGE_PATHS: Record<string, string> = {
   'dso-portal': '/dso-portal',
   university: '/university',
   'request-center': '/request-center',
-  'quick-test': '/quick-test',
-  'integration-test': '/integration-test',
-  'cleanup-utility': '/cleanup-utility',
 };
 
 // ─── Inner router component (must be inside BrowserRouter to use useNavigate) ─
@@ -96,18 +90,6 @@ function RouterApp() {
         <Route
           path="/university"
           element={<UniversityPortal onNavigate={navigate} />}
-        />
-        <Route
-          path="/quick-test"
-          element={<QuickTest onNavigate={navigate} />}
-        />
-        <Route
-          path="/integration-test"
-          element={<IntegrationTest onBack={() => navigate('landing')} />}
-        />
-        <Route
-          path="/cleanup-utility"
-          element={<CleanupUtility />}
         />
         <Route
           path="/request-center"
