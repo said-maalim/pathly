@@ -68,15 +68,17 @@ export function UniversityStudentPortal({ onNavigate, onLogout, userData }: Univ
   const userEmail = userData?.data?.user?.email ?? 'student@university.edu';
   const userName = userData?.data?.user?.user_metadata?.name ?? 'Student';
   const userId = userData?.data?.user?.id;
-  const meta = userData?.data?.user?.user_metadata as any;
-  const studentId = meta?.studentId ?? meta?.student_id_number ?? '';
-  const program = meta?.program ?? meta?.major ?? '';
-  const degreeLevel = meta?.degreeLevel ?? meta?.degree_level ?? '';
   const initials = userName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
 
   // ─── Data Hooks ─────────────────────────────────────────────────────────
   const { unreadCount } = useStudentMessages();
-  const { sevisStatus, visaStatus, passportStatus, loading: profileLoading, refresh: refreshProfile } = useStudentProfile();
+  const { student, sevisStatus, visaStatus, passportStatus, loading: profileLoading, refresh: refreshProfile } = useStudentProfile();
+
+  // Student profile fields come from the DB (populated by DSO via roster
+  // import or manual edit). Empty values render as "Not set" placeholders.
+  const studentId = student?.student_id_number ?? '';
+  const program = student?.program_of_study ?? student?.major ?? '';
+  const degreeLevel = student?.degree_level ?? '';
   const { myRequests, dsoRequests, loading: requestsLoading, refresh: refreshRequests } = useStudentRequests();
   const { documents: recentDocuments, refresh: refreshDocuments } = useStudentDocuments(userId);
   const loading = profileLoading || requestsLoading;
