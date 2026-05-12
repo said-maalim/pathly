@@ -130,10 +130,10 @@ export function UniversityStudentPortal({ onNavigate, onLogout, userData }: Univ
   // ─── Nav items ────────────────────────────────────────────────────────
   const NAV_ITEMS: { view: StudentView; icon: React.ReactNode; label: string; badge?: number }[] = [
     { view: 'dashboard', icon: SVG.dashboard, label: 'Dashboard' },
-    { view: 'settings', icon: SVG.profile, label: 'My Profile' },
+    { view: 'i20-request', icon: SVG.requestCenter, label: 'Request Center' },
     { view: 'messaging' as StudentView, icon: SVG.messaging, label: 'Messaging', badge: unreadCount > 0 ? unreadCount : undefined },
     { view: 'all-requests', icon: SVG.allRequests, label: 'All Requests' },
-    { view: 'i20-request', icon: SVG.requestCenter, label: 'Request Center' },
+    { view: 'settings', icon: SVG.profile, label: 'My Profile' },
   ];
 
   // ─── Sub-view content renderer ────────────────────────────────────────
@@ -372,7 +372,7 @@ export function UniversityStudentPortal({ onNavigate, onLogout, userData }: Univ
                   onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'} onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}>
                   {SVG.plus} New DSO Request
                 </button>
-                <button onClick={() => setCurrentView('i20-tracker')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', width: '100%', padding: '9px 16px', borderRadius: '6px', background: '#f4f5f7', border: '1px solid #e5e7eb', color: '#111827', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+                <button onClick={() => setCurrentView('all-requests')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', width: '100%', padding: '9px 16px', borderRadius: '6px', background: '#f4f5f7', border: '1px solid #e5e7eb', color: '#111827', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
                   onMouseEnter={e => e.currentTarget.style.background = '#eaebec'} onMouseLeave={e => e.currentTarget.style.background = '#f4f5f7'}>
                   {SVG.clock} Track My Requests
                 </button>
