@@ -43,10 +43,6 @@ export function RequestCenterPage({ onNavigate, onSubmit }: RequestCenterPagePro
         <Settings className="w-5 h-5" />
         <span>Settings</span>
       </button>
-      <button onClick={() => onNavigate('ask-lexi')} className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors w-full text-left">
-        <MessageSquare className="w-5 h-5" />
-        <span>Ask Lexi</span>
-      </button>
     </>
   );
 

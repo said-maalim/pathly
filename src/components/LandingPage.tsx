@@ -115,8 +115,7 @@ export function LandingPage({ onNavigate }: LandingPageProps) {
               { icon: Globe, title: 'Document Verification', desc: 'Streamlined document review and approval workflows for DSOs' },
               { icon: MessageSquare, title: 'Communication Hub', desc: 'Built-in messaging system with email templates and history' },
               { icon: CheckCircle2, title: 'Student Portal', desc: 'Self-service portal for students to submit requests and track status' },
-              { icon: Shield, title: 'Secure Storage', desc: 'Encrypted document storage with role-based access control' },
-              { icon: CheckCircle2, title: 'AI Assistant', desc: 'Lexi provides 24/7 answers to common immigration questions' }
+              { icon: Shield, title: 'Secure Storage', desc: 'Encrypted document storage with role-based access control' }
             ].map((feature, idx) => (
               <div key={idx} className="bg-white rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
                 <div className="w-12 h-12 bg-[#2A73E8]/10 rounded-lg flex items-center justify-center mb-4">
