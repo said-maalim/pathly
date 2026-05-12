@@ -19,7 +19,25 @@ import type {
     PassportStatusDisplay,
 } from '../types';
 
+/** Public.users row as returned by /students/my-profile. */
+export interface UserRecord {
+    id: string;
+    school_id: string;
+    email: string;
+    full_name: string;
+    preferred_name?: string;
+    role: 'student' | 'dso' | 'admin';
+    status: string;
+    phone?: string;
+    avatar_url?: string;
+    created_at: string;
+    updated_at: string;
+    last_login_at?: string;
+    deleted_at?: string;
+}
+
 interface StudentProfileState {
+    user: UserRecord | null;
     student: StudentRecord | null;
     sevisStatus: SevisStatusDisplay | null;
     visaStatus: VisaStatusDisplay | null;
@@ -66,6 +84,7 @@ function derivePassportStatus(student: StudentRecord): PassportStatusDisplay {
 }
 
 export function useStudentProfile(): StudentProfileState {
+    const [user, setUser] = useState<UserRecord | null>(null);
     const [student, setStudent] = useState<StudentRecord | null>(null);
     const [sevisStatus, setSevisStatus] = useState<SevisStatusDisplay | null>(null);
     const [visaStatus, setVisaStatus] = useState<VisaStatusDisplay | null>(null);
@@ -77,7 +96,8 @@ export function useStudentProfile(): StudentProfileState {
         try {
             setLoading(true);
             setError(null);
-            const { student: s } = await getMyProfile();
+            const { user: u, student: s } = await getMyProfile();
+            setUser(u as unknown as UserRecord);
             setStudent(s);
             setSevisStatus(deriveSevisStatus(s));
             setVisaStatus(deriveVisaStatus(s));
@@ -94,5 +114,5 @@ export function useStudentProfile(): StudentProfileState {
         fetch();
     }, [fetch]);
 
-    return { student, sevisStatus, visaStatus, passportStatus, loading, error, refresh: fetch };
+    return { user, student, sevisStatus, visaStatus, passportStatus, loading, error, refresh: fetch };
 }
