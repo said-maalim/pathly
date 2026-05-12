@@ -295,8 +295,7 @@ CREATE TABLE requests (
   
   -- Request data
   form_data JSONB DEFAULT '{}',
-  uploaded_files JSONB DEFAULT '[]',  -- Array of file references
-  
+
   -- Status & priority
   status request_status DEFAULT 'pending',
   priority request_priority DEFAULT 'Normal',
@@ -418,8 +417,7 @@ CREATE TABLE responses (
   
   -- Response data
   response_data JSONB DEFAULT '{}',  -- Form data or confirmation
-  document_url TEXT,  -- URL if document was uploaded
-  document_id UUID,  -- Reference to documents table (if applicable)
+  document_id UUID REFERENCES documents(id) ON DELETE SET NULL,  -- Optional document attachment
   
   -- Status
   status VARCHAR(50) DEFAULT 'submitted',
@@ -1020,8 +1018,12 @@ WHERE s.deleted_at IS NULL AND u.deleted_at IS NULL;
 
 
 -- View: Request summary with student details
+-- NOTE: PostgreSQL materializes the column list at view-creation time,
+-- so even though the source uses r.*, dropping a column from
+-- public.requests requires rebuilding this view in the same migration.
+-- See: supabase/migrations/20260511040000_drop_requests_uploaded_files.sql
 CREATE OR REPLACE VIEW request_summaries AS
-SELECT 
+SELECT
   r.*,
   s.user_id,
   u.full_name AS student_name,
