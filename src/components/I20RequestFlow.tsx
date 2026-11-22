@@ -172,7 +172,10 @@ export function I20RequestFlow({ requestId, requestName, onClose, onSubmit }: I2
     const category = categories.find(c => c.id === requestId);
     
     return (
-      <div className="min-h-screen bg-[#F5F6FA] p-4 sm:p-6 lg:p-8">
+      <div
+        style={{ flex: 1, overflowY: 'auto', background: '#f4f5f7', fontFamily: "'DM Sans', 'Inter', sans-serif" }}
+        className="p-4 sm:p-6 lg:p-8"
+      >
         <div className="max-w-3xl mx-auto">
           <div className="mb-8">
             <Button variant="ghost" onClick={onClose} className="mb-4">
@@ -577,7 +580,10 @@ export function I20RequestFlow({ requestId, requestName, onClose, onSubmit }: I2
     const category = categories.find(c => c.id === requestId);
     
     return (
-      <div className="min-h-screen bg-[#F5F6FA] p-4 sm:p-6 lg:p-8">
+      <div
+        style={{ flex: 1, overflowY: 'auto', background: '#f4f5f7', fontFamily: "'DM Sans', 'Inter', sans-serif" }}
+        className="p-4 sm:p-6 lg:p-8"
+      >
         <div className="max-w-3xl mx-auto">
           <div className="mb-8">
             <Button variant="ghost" onClick={() => setStep('form')} className="mb-4">
@@ -663,7 +669,10 @@ export function I20RequestFlow({ requestId, requestName, onClose, onSubmit }: I2
   // Success Screen
   if (step === 'success') {
     return (
-      <div className="min-h-screen bg-[#F5F6FA] flex items-center justify-center p-4">
+      <div
+        style={{ flex: 1, overflowY: 'auto', background: '#f4f5f7', fontFamily: "'DM Sans', 'Inter', sans-serif" }}
+        className="flex items-center justify-center p-4"
+      >
         <Card className="max-w-md w-full shadow-lg border-0">
           <CardContent className="p-8 text-center">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">

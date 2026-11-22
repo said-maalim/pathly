@@ -8,6 +8,27 @@
  */
 import { useState } from 'react';
 import { I20RequestFlow } from './I20RequestFlow';
+import { useStudentRequests } from '../hooks/useStudentRequests';
+import type { RequestRecord, RequestStatus } from '../types';
+
+// ── Recent-request status → badge color ────────────────────────────────────
+// Real DB enum: 'pending' | 'in_review' | 'approved' | 'denied' | 'cancelled' | 'completed'
+
+const STATUS_BADGE: Record<RequestStatus, { label: string; bg: string; color: string }> = {
+  pending:   { label: 'Pending',    bg: '#e0e7ff', color: '#3730a3' },
+  in_review: { label: 'In Review',  bg: '#fef9c3', color: '#854d0e' },
+  approved:  { label: 'Approved',   bg: '#dcfce7', color: '#166534' },
+  denied:    { label: 'Denied',     bg: '#fee2e2', color: '#b91c1c' },
+  cancelled: { label: 'Cancelled',  bg: '#f3f4f6', color: '#4b5563' },
+  completed: { label: 'Completed',  bg: '#dcfce7', color: '#166534' },
+};
+
+function formatSubmittedDate(iso: string | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return `Submitted ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+}
 
 // ── SVG icons ──────────────────────────────────────────────────────────────
 
@@ -96,11 +117,27 @@ const COLOR_MAP: Record<string, string> = { blue: '#2563eb', purple: '#7c3aed', 
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-interface RequestCenterProps { onBack: () => void; onSubmit: (data: any) => void; }
+interface RequestCenterProps {
+  onBack: () => void;
+  onSubmit: (data: any) => void;
+  /** Navigate to the student's All Requests page. */
+  onNavigateToAllRequests?: () => void;
+  /** Navigate to the Messaging page. */
+  onNavigateToMessaging?: () => void;
+}
 
-export function RequestCenter({ onBack, onSubmit }: RequestCenterProps) {
+export function RequestCenter({ onBack, onSubmit, onNavigateToAllRequests, onNavigateToMessaging }: RequestCenterProps) {
   const [selectedCategory, setSelectedCategory] = useState<CatId | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
+
+  const { myRequests, loading: requestsLoading } = useStudentRequests();
+  const recentRequests: RequestRecord[] = [...myRequests]
+    .sort((a, b) => {
+      const at = new Date(a.submitted_at || a.created_at || 0).getTime();
+      const bt = new Date(b.submitted_at || b.created_at || 0).getTime();
+      return bt - at;
+    })
+    .slice(0, 3);
 
   // Level 3: Form flow
   if (selectedRequest) {
@@ -191,7 +228,9 @@ export function RequestCenter({ onBack, onSubmit }: RequestCenterProps) {
               <div style={{ fontSize: '13.5px', fontWeight: 600, marginBottom: '3px', color: '#111827' }}>{helpInfo.title}</div>
               <div style={{ fontSize: '12.5px', color: '#6b7280', lineHeight: 1.5 }}>{helpInfo.sub}</div>
             </div>
-            <button style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '6px', background: '#2563eb', color: '#fff', border: 'none', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}
+            <button
+              onClick={onNavigateToMessaging}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '6px', background: '#2563eb', color: '#fff', border: 'none', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}
               onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'} onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}>
               {ICN.mail} Message DSO
             </button>
@@ -246,28 +285,38 @@ export function RequestCenter({ onBack, onSubmit }: RequestCenterProps) {
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
           <span style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>Recent Requests</span>
-          <a style={{ fontSize: '12.5px', color: '#2563eb', fontWeight: 500, cursor: 'pointer' }}>View all requests →</a>
+          <a onClick={onNavigateToAllRequests} style={{ fontSize: '12.5px', color: '#2563eb', fontWeight: 500, cursor: 'pointer' }}>View all requests →</a>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-          {[
-            { title: 'CPT Extension — Undergraduate to Graduate', status: 'Review', statusBg: '#fef9c3', statusColor: '#854d0e', date: 'Submitted Nov 10, 2025' },
-            { title: 'OPT Application — Post-Completion', status: 'Submitted', statusBg: '#e0e7ff', statusColor: '#3730a3', date: 'Submitted Oct 28, 2025' },
-            { title: 'Travel Signature Request', status: 'Approved', statusBg: '#dcfce7', statusColor: '#166534', date: 'Submitted Sep 5, 2025' },
-          ].map((r, i) => (
-            <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '14px 16px' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 500, color: '#111827', lineHeight: 1.4 }}>{r.title}</div>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 9px', borderRadius: '20px', fontSize: '11px', fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0, background: r.statusBg, color: r.statusColor }}>
-                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'currentColor', opacity: 0.6 }} />
-                  {r.status}
-                </span>
-              </div>
-              <div style={{ fontSize: '11.5px', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                {ICN.clockBig} {r.date}
-              </div>
-            </div>
-          ))}
-        </div>
+        {requestsLoading ? (
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '20px', textAlign: 'center', fontSize: '13px', color: '#9ca3af' }}>
+            Loading…
+          </div>
+        ) : recentRequests.length === 0 ? (
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '24px', textAlign: 'center' }}>
+            <div style={{ fontSize: '13.5px', fontWeight: 500, color: '#111827', marginBottom: '4px' }}>No requests yet</div>
+            <div style={{ fontSize: '12.5px', color: '#6b7280' }}>Pick a category above to submit your first request.</div>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+            {recentRequests.map((r) => {
+              const badge = STATUS_BADGE[r.status] ?? { label: r.status, bg: '#f3f4f6', color: '#4b5563' };
+              return (
+                <div key={r.id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 500, color: '#111827', lineHeight: 1.4 }}>{r.request_name || r.request_type}</div>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 9px', borderRadius: '20px', fontSize: '11px', fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0, background: badge.bg, color: badge.color }}>
+                      <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'currentColor', opacity: 0.6 }} />
+                      {badge.label}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '11.5px', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    {ICN.clockBig} {formatSubmittedDate(r.submitted_at || r.created_at)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Help strip */}
@@ -278,13 +327,11 @@ export function RequestCenter({ onBack, onSubmit }: RequestCenterProps) {
           <div style={{ fontSize: '13px', color: '#6b7280', lineHeight: 1.6 }}>{helpInfo.sub}</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-          <button style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '6px', background: 'transparent', border: '1px solid #2563eb', color: '#2563eb', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+          <button
+            onClick={onNavigateToMessaging}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '6px', background: 'transparent', border: '1px solid #2563eb', color: '#2563eb', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
             onMouseEnter={e => e.currentTarget.style.background = '#eff6ff'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
             {ICN.mail} Message DSO
-          </button>
-          <button style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '6px', background: '#2563eb', border: '1px solid #2563eb', color: '#fff', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
-            onMouseEnter={e => e.currentTarget.style.background = '#1d4ed8'} onMouseLeave={e => e.currentTarget.style.background = '#2563eb'}>
-            {ICN.plus} New Request
           </button>
         </div>
       </div>

@@ -142,7 +142,12 @@ export function UniversityStudentPortal({ onNavigate, onLogout, userData }: Univ
   const renderSubViewContent = () => {
     switch (currentView) {
       case 'i20-request':
-        return <RequestCenter onBack={() => setCurrentView('dashboard')} onSubmit={handleI20RequestSubmit} />;
+        return <RequestCenter
+          onBack={() => setCurrentView('dashboard')}
+          onSubmit={handleI20RequestSubmit}
+          onNavigateToAllRequests={() => setCurrentView('all-requests')}
+          onNavigateToMessaging={() => setCurrentView('messaging')}
+        />;
       case 'i20-tracker':
         return <I20RequestTracker onBack={() => setCurrentView('dashboard')} requests={myRequests as any} onSubmitNewRequest={() => setCurrentView('i20-request')} />;
       case 'settings':
