@@ -1,0 +1,216 @@
+/* messaging.css — scoped with .msg- prefix
+   Shared styles for StudentMessagingView and DSOCommunicationCenter */
+
+/* ── Layout ──────────────────────────────────────────────────────────────────── */
+.msg-page{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0}
+.msg-ws{flex:1;display:grid;grid-template-columns:360px minmax(0,1fr);min-height:0;background:#fff}
+.msg-ws--dso{grid-template-columns:340px minmax(0,1fr) var(--msg-panel-w,300px)}
+.msg-ws--no-sel.msg-ws--dso{grid-template-columns:340px minmax(0,1fr)}
+.msg-ws--no-sel.msg-ws--dso .msg-cx{display:none}
+
+/* ── Panes ───────────────────────────────────────────────────────────────────── */
+.msg-pane{display:flex;flex-direction:column;min-height:0;border-right:1px solid #e5e7eb}
+.msg-thread{display:flex;flex-direction:column;min-height:0;background:#fafbfc}
+
+/* ── Pane header ─────────────────────────────────────────────────────────────── */
+.msg-ph{padding:18px 20px 12px;flex:none}
+.msg-ph-row{display:flex;align-items:center;justify-content:space-between}
+.msg-ph h1{font-size:20px;letter-spacing:-.5px;font-weight:700;color:#111827;margin:0}
+
+/* ── Search (DSO) ────────────────────────────────────────────────────────────── */
+.msg-find{margin-top:12px;height:38px;border:1px solid #e5e7eb;border-radius:8px;display:flex;align-items:center;gap:8px;padding:0 12px;background:#f4f5f7}
+.msg-find input{border:0;background:none;outline:0;flex:1;font-size:14px;font-family:inherit;color:#111827}
+
+/* ── Filter tabs ─────────────────────────────────────────────────────────────── */
+.msg-tabs{display:flex;gap:6px;padding:4px 20px 12px;border-bottom:1px solid #e5e7eb;flex:none}
+.msg-tab{border:1px solid #e5e7eb;background:#fff;border-radius:20px;padding:5px 12px;font-size:12.5px;font-weight:600;color:#6b7280;cursor:pointer;font-family:inherit}
+.msg-tab[aria-pressed=true]{background:#1a1f2e;border-color:#1a1f2e;color:#fff}
+.msg-tab b{font-weight:600;opacity:.65;margin-left:3px}
+
+/* ── Conversation list ───────────────────────────────────────────────────────── */
+.msg-list{flex:1;overflow:auto;list-style:none;margin:0;padding:0}
+.msg-empty{padding:48px 24px;text-align:center;color:#6b7280;font-size:14px;display:block}
+
+/* ── Conversation row ────────────────────────────────────────────────────────── */
+.msg-cv{display:flex;gap:12px;padding:14px 20px;border:0;border-bottom:1px solid #f3f4f6;position:relative;width:100%;background:none;text-align:left;cursor:pointer;font-family:inherit;align-items:flex-start}
+.msg-cv:hover{background:#fafafa}
+.msg-cv[aria-current=true]{background:#eff6ff}
+.msg-cv[aria-current=true]::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:#2563eb}
+.msg-cv-m{flex:1;min-width:0;display:block}
+.msg-cv-n{display:flex;justify-content:space-between;gap:8px;font-size:14px;font-weight:600;color:#111827}
+.msg-cv-n time{font-size:12px;color:#9ca3af;font-weight:400;flex:none}
+.msg-cv-sj{font-size:13px;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;display:block}
+.msg-cv-pv{font-size:12.5px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;display:block}
+.msg-cv--un .msg-cv-n{font-weight:700}
+.msg-cv--un .msg-cv-sj{font-weight:700}
+
+/* ── Avatar ──────────────────────────────────────────────────────────────────── */
+.msg-av{border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;flex:none}
+
+/* ── Unread dot ──────────────────────────────────────────────────────────────── */
+.msg-dot{width:8px;height:8px;border-radius:50%;background:#2563eb;flex:none;margin-top:6px}
+
+/* ── Status tags ─────────────────────────────────────────────────────────────── */
+.msg-tg{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;margin-top:6px}
+.msg-tg--amber{background:#fef3c7;color:#92400e}
+.msg-tg--green{background:#dcfce7;color:#166534}
+.msg-tg--blue{background:#e0e7ff;color:#3730a3}
+.msg-tg--gray{background:#f3f4f6;color:#4b5563}
+.msg-tg--red{background:#fee2e2;color:#991b1b}
+
+/* ── Thread header ───────────────────────────────────────────────────────────── */
+.msg-thh{display:flex;align-items:center;gap:12px;padding:14px 24px;background:#fff;border-bottom:1px solid #e5e7eb;flex:none}
+.msg-thh h2{font-size:16px;letter-spacing:-.2px;margin:0}
+.msg-thh small{color:#6b7280;font-size:13px}
+.msg-thh-acts{margin-left:auto;display:flex;gap:8px}
+.msg-back{display:none;border:0;background:none;font-size:20px;cursor:pointer;padding:4px}
+
+/* ── Linked request strip ────────────────────────────────────────────────────── */
+.msg-link{display:flex;align-items:center;gap:10px;margin:16px 24px 0;padding:11px 14px;background:#fff;border:1px solid #e5e7eb;border-left:3px solid #2563eb;border-radius:10px;font-size:13px;flex:none}
+.msg-link a{margin-left:auto;color:#2563eb;font-weight:600;text-decoration:none;font-size:13px}
+.msg-link a:hover{text-decoration:underline}
+.msg-link b{font-weight:600}
+
+/* ── Messages ────────────────────────────────────────────────────────────────── */
+.msg-msgs{flex:1;overflow:auto;padding:20px 24px;display:flex;flex-direction:column;gap:6px}
+.msg-day{align-self:center;font-size:12px;color:#9ca3af;margin:10px 0 6px}
+.msg-b{max-width:68%;padding:11px 15px;border-radius:16px;font-size:14.5px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+/* msg-b--left = received (white/bordered, left-aligned) */
+.msg-b--left{align-self:flex-start;background:#fff;border:1px solid #e5e7eb;border-bottom-left-radius:4px}
+/* msg-b--right = sent (blue, right-aligned) */
+.msg-b--right{align-self:flex-end;background:#2563eb;color:#fff;border-bottom-right-radius:4px}
+.msg-tm{font-size:11.5px;color:#9ca3af;margin:0 4px 8px}
+.msg-tm--right{align-self:flex-end}
+.msg-wait{align-self:center;margin:10px 0;font-size:12.5px;color:#92400e;background:#fef3c7;border-radius:20px;padding:6px 14px}
+
+/* ── Composer ────────────────────────────────────────────────────────────────── */
+.msg-comp{margin:0 24px 20px;background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 6px 20px -12px rgba(26,31,46,.25);flex:none;position:relative}
+.msg-comp:focus-within{border-color:#93b4f5;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.msg-comp textarea{width:100%;border:0;outline:0;resize:none;padding:14px 16px 6px;font-size:14.5px;min-height:56px;max-height:160px;background:none;font-family:inherit;box-sizing:border-box}
+.msg-cbar{display:flex;align-items:center;gap:6px;padding:8px 10px 10px 12px}
+.msg-cbar-hint{margin-left:auto;font-size:12px;color:#9ca3af;margin-right:6px}
+.msg-ib{height:32px;padding:0 10px;border:0;background:none;border-radius:6px;font-size:13px;font-weight:600;color:#6b7280;display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-family:inherit}
+.msg-ib:hover{background:#f4f5f7;color:#111827}
+
+/* ── Templates dropdown ──────────────────────────────────────────────────────── */
+.msg-menu{position:absolute;left:10px;bottom:56px;width:300px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 18px 44px -14px rgba(26,31,46,.35);padding:6px;z-index:5;display:none}
+.msg-menu--open{display:block}
+.msg-menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:9px 10px;border-radius:8px;font-size:13.5px;cursor:pointer;font-family:inherit}
+.msg-menu button:hover{background:#f4f5f7}
+.msg-menu small{display:block;color:#6b7280;font-size:12px}
+
+/* ── Shared buttons ──────────────────────────────────────────────────────────── */
+.msg-btn{height:36px;padding:0 14px;border-radius:8px;border:1px solid #e5e7eb;background:#fff;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-family:inherit}
+.msg-btn:hover{background:#f4f5f7}
+.msg-btn--p{background:#2563eb;border-color:#2563eb;color:#fff}
+.msg-btn--p:hover{background:#1d4ed8}
+.msg-btn:disabled{opacity:.55;cursor:default}
+.msg-btn--p:disabled{background:#2563eb}
+
+/* ── Gradient "New message" button ───────────────────────────────────────────── */
+.msg-nb{height:36px;padding:0 14px 0 8px;border:0;border-radius:18px;background:linear-gradient(135deg,#2563eb,#6366f1);color:#fff;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:8px;box-shadow:0 6px 16px -6px rgba(79,70,229,.7);transition:transform .15s;cursor:pointer;font-family:inherit}
+.msg-nb:hover{transform:translateY(-1px)}
+.msg-nb i{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.22);display:grid;place-items:center;transition:transform .25s}
+.msg-nb:hover i{transform:rotate(90deg)}
+.msg-nb kbd{font:600 10.5px 'DM Sans',sans-serif;background:rgba(255,255,255,.2);border-radius:4px;padding:1px 5px;margin-left:2px;border:0}
+
+/* ── Context panel (DSO) ─────────────────────────────────────────────────────── */
+.msg-cx{background:#fff;display:flex;overflow:hidden;border-left:1px solid #e5e7eb;min-width:0}
+/* drag handle — lives on the left edge of the panel */
+.msg-cx-handle{width:4px;flex:none;cursor:col-resize;background:#e5e7eb;transition:background .15s;align-self:stretch}
+.msg-cx-handle:hover,.msg-cx-handle--active{background:#2563eb}
+/* scrollable content area inside the panel */
+.msg-cx-scroll{flex:1;overflow-y:auto;padding:22px 20px;min-width:0}
+.msg-cx-who{text-align:center;padding-bottom:18px;border-bottom:1px solid #e5e7eb}
+.msg-cx h3{font-size:16px;margin:8px 0 2px}
+.msg-cx-email{font-size:13px;color:#6b7280}
+.msg-cx h4{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:#9ca3af;margin:20px 0 10px}
+.msg-kv{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;padding:7px 0;border-bottom:1px solid #f3f4f6}
+.msg-kv span:first-child{color:#6b7280}
+.msg-kv span:last-child{font-weight:600;text-align:right}
+.msg-rq{padding:11px 12px;border:1px solid #e5e7eb;border-radius:10px;font-size:13px;margin-bottom:8px}
+.msg-rq b{display:block;font-weight:600;margin-bottom:5px}
+.msg-cx-scroll .msg-btn{width:100%;justify-content:center;margin-top:6px}
+
+/* ── Empty state — student ───────────────────────────────────────────────────── */
+.msg-es{flex:1;overflow:auto;display:grid;place-items:center;padding:32px;background:radial-gradient(circle at 50% 20%,#eef2ff 0,#fafbfc 60%)}
+.msg-es>div{width:100%;max-width:560px}
+.msg-dsoc{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px 18px;box-shadow:0 10px 30px -18px rgba(26,31,46,.3)}
+.msg-dsoc h2{font-size:16px;letter-spacing:-.2px;margin:0 0 2px}
+.msg-dsoc p{font-size:13px;color:#6b7280;margin:0}
+.msg-dsoc-meta{margin-left:auto;text-align:right;font-size:12px;color:#6b7280;line-height:1.5}
+.msg-dsoc-meta b{display:block;color:#111827;font-size:13px}
+.msg-es h3{font-size:13px;color:#6b7280;font-weight:600;margin:26px 2px 10px}
+.msg-starters{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.msg-sc{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;text-align:left;display:flex;gap:12px;align-items:flex-start;cursor:pointer;font-family:inherit;transition:transform .15s,box-shadow .15s;width:100%}
+.msg-sc:hover{border-color:#93b4f5;box-shadow:0 8px 20px -14px rgba(37,99,235,.6);transform:translateY(-1px)}
+.msg-sc i{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-style:normal;font-size:16px;flex:none;background:#eef2ff}
+.msg-sc b{display:block;font-size:14px;font-weight:600;margin-bottom:2px}
+.msg-sc span{font-size:12.5px;color:#6b7280}
+.msg-on-dot{width:7px;height:7px;border-radius:50%;background:#16a34a;display:inline-block;vertical-align:middle}
+
+/* ── Empty state — DSO ───────────────────────────────────────────────────────── */
+.msg-es-dso{flex:1;display:grid;place-items:center;padding:32px;background:radial-gradient(circle at 50% 30%,#eef2ff 0,#fafbfc 60%)}
+.msg-es-dso>div{max-width:440px;text-align:center}
+.msg-es-ic{width:64px;height:64px;border-radius:20px;margin:0 auto 18px;display:grid;place-items:center;background:linear-gradient(135deg,#2563eb,#6366f1);color:#fff;box-shadow:0 14px 30px -12px rgba(79,70,229,.6)}
+.msg-es-dso h2{font-size:20px;letter-spacing:-.4px;margin:0 0 6px}
+.msg-es-dso p{color:#6b7280;font-size:14px;line-height:1.5}
+.msg-es-st{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:24px 0 18px}
+.msg-es-st button{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px 8px;text-align:center;cursor:pointer;font-family:inherit;width:100%}
+.msg-es-st button:hover{border-color:#93b4f5;box-shadow:0 6px 16px -10px rgba(37,99,235,.5)}
+.msg-es-st b{display:block;font-size:22px;letter-spacing:-.5px;color:#111827}
+.msg-es-st span{font-size:12px;color:#6b7280}
+.msg-es-acts{display:flex;gap:8px;justify-content:center}
+
+/* ── Modal overlay ───────────────────────────────────────────────────────────── */
+.msg-ov{position:fixed;inset:0;background:rgba(17,24,39,.45);backdrop-filter:blur(2px);display:none;align-items:flex-start;justify-content:center;padding:9vh 16px 16px;z-index:20}
+.msg-ov--on{display:flex}
+.msg-mdl{width:100%;max-width:580px;background:#fff;border-radius:16px;box-shadow:0 30px 70px -20px rgba(17,24,39,.5);overflow:hidden;animation:msg-pop .18s ease-out}
+@keyframes msg-pop{from{opacity:0;transform:translateY(8px) scale(.98)}}
+.msg-mh{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid #e5e7eb}
+.msg-mh h2{font-size:16px;margin:0}
+.msg-mh-to{font-size:12.5px;color:#6b7280;margin-left:auto}
+.msg-mh-close{border:0;background:none;font-size:18px;color:#6b7280;width:30px;height:30px;border-radius:8px;cursor:pointer;display:grid;place-items:center}
+.msg-mh-close:hover{background:#f4f5f7}
+.msg-sec{padding:14px 20px 0}
+.msg-sec label,.msg-sec-l{display:block;font-size:12px;font-weight:600;color:#6b7280;margin-bottom:8px}
+.msg-topics{display:flex;flex-wrap:wrap;gap:6px}
+.msg-topics button{border:1px solid #e5e7eb;background:#fff;border-radius:20px;padding:6px 12px;font-size:13px;font-weight:600;color:#6b7280;cursor:pointer;font-family:inherit}
+.msg-topics button[aria-pressed=true]{background:#eef2ff;border-color:#93b4f5;color:#2563eb}
+.msg-fld{width:100%;height:38px;border:1px solid #e5e7eb;border-radius:8px;padding:0 12px;font-size:14px;background:#fff;font-family:inherit;outline:none;box-sizing:border-box}
+.msg-fld:focus{border-color:#93b4f5;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+textarea.msg-fld{height:130px;padding:10px 12px;resize:none;line-height:1.5}
+.msg-mf{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;margin-top:16px;border-top:1px solid #e5e7eb;background:#fafbfc}
+.msg-mf-hint{font-size:12px;color:#9ca3af}
+
+/* ── DSO compose modal — recipient row ───────────────────────────────────────── */
+.msg-fr{display:flex;align-items:center;gap:10px;padding:10px 20px;border-bottom:1px solid #f3f4f6;position:relative;font-size:14px}
+.msg-fr label{width:56px;color:#9ca3af;font-size:13px;flex:none}
+.msg-fr input{flex:1;border:0;outline:0;font-size:14px;min-width:0;background:none;font-family:inherit}
+.msg-pk{display:inline-flex;align-items:center;gap:8px;background:#eef2ff;border-radius:20px;padding:3px 4px 3px 3px;font-weight:600;font-size:13px}
+.msg-pk button{border:0;background:none;color:#6b7280;width:20px;height:20px;border-radius:50%;cursor:pointer;display:grid;place-items:center}
+.msg-sg{position:absolute;left:86px;right:20px;top:100%;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 18px 40px -14px rgba(26,31,46,.35);padding:6px;z-index:3;display:none}
+.msg-sg--on{display:block}
+.msg-sg button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:8px;border-radius:8px;text-align:left;font-size:13.5px;cursor:pointer;font-family:inherit}
+.msg-sg button:hover,.msg-sg button.msg-sg-hi{background:#f4f5f7}
+.msg-qt{display:flex;gap:6px;flex-wrap:wrap;padding:12px 20px 0}
+.msg-qt button{border:1px solid #e5e7eb;background:#fff;border-radius:20px;padding:4px 11px;font-size:12.5px;font-weight:600;color:#6b7280;cursor:pointer;font-family:inherit}
+.msg-qt button:hover{border-color:#93b4f5;color:#2563eb}
+.msg-mdl textarea:not(.msg-fld){width:100%;border:0;outline:0;resize:none;padding:12px 20px;font-size:14.5px;min-height:140px;font-family:inherit}
+
+/* ── Responsive ──────────────────────────────────────────────────────────────── */
+@media(max-width:1180px){
+  .msg-ws--dso,.msg-ws--dso.msg-ws--no-sel{grid-template-columns:320px minmax(0,1fr)}
+  .msg-cx{display:none!important}
+}
+@media(max-width:860px){
+  .msg-ws,.msg-ws--dso{grid-template-columns:1fr}
+  .msg-thread{display:none}
+  .msg-ws--open .msg-pane{display:none}
+  .msg-ws--open .msg-thread{display:flex}
+  .msg-back{display:block}
+  .msg-b{max-width:85%}
+  .msg-starters{grid-template-columns:1fr}
+  .msg-dsoc-meta{display:none}
+}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}

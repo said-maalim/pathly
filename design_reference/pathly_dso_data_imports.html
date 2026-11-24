@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pathly – Data Imports</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--nav:#1a1f2e;--ink:#111827;--mute:#6b7280;--soft:#9ca3af;--line:#e5e7eb;--bg:#f4f5f7;--blue:#2563eb;--indigo:#6366f1;--green:#16a34a;--amber:#d97706;--red:#dc2626;font-family:'DM Sans',sans-serif}
+html,body{height:100%;background:var(--bg);color:var(--ink)}
+button,input,textarea,select{font:inherit;color:inherit}button{cursor:pointer}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.shell{display:flex;height:100vh;overflow:hidden}
+.sb{width:220px;background:var(--nav);flex:none;padding-bottom:16px}
+.logo{display:flex;align-items:center;gap:10px;padding:20px 20px 18px;color:#fff;font-weight:600;font-size:17px;letter-spacing:-.3px}
+.logo i{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#6366f1);display:grid;place-items:center;font-style:normal;font-size:16px}
+.sb nav{padding:0 10px}.sb a{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:7px;color:#8b92a5;font-size:13.5px;text-decoration:none;margin-bottom:2px}
+.sb a:hover{color:#fff;background:rgba(255,255,255,.05)}.sb a.on{color:#fff;background:rgba(255,255,255,.08);font-weight:500}.sb svg{width:16px;height:16px;flex:none}
+.sb .lab{font-size:10px;letter-spacing:.08em;color:#4b5563;text-transform:uppercase;padding:16px 12px 6px}
+.main{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+.top{height:56px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:0 24px;flex:none}
+.top .s{flex:1;max-width:520px;height:36px;background:var(--bg);border:1px solid var(--line);border-radius:6px;display:flex;align-items:center;padding:0 12px;color:var(--soft);font-size:13.5px}
+.chip{margin-left:auto;display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border:1px solid var(--line);border-radius:20px;background:var(--bg);font-size:13px;font-weight:500}
+.av{border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;flex:none}
+.scroll{flex:1;overflow:auto;min-height:0}
+.wrap{max-width:1220px;margin:0 auto;padding:24px 32px 48px}
+.hh{display:flex;align-items:center;gap:14px}.hi{width:44px;height:44px;border-radius:12px;background:#dbeafe;color:var(--blue);display:grid;place-items:center;flex:none}
+h1{font-size:26px;letter-spacing:-.6px}.sub{color:var(--mute);font-size:14.5px;margin-top:2px}
+.tabs2{display:inline-flex;gap:2px;margin:20px 0;padding:4px;background:#fff;border:1px solid var(--line);border-radius:10px}
+.tabs2 button{border:0;background:none;padding:9px 20px;font-size:14px;font-weight:600;color:var(--mute);border-radius:7px;display:flex;align-items:center;gap:8px}
+.tabs2 button:hover{color:var(--ink);background:var(--bg)}.tabs2 button[aria-selected=true]{background:var(--nav);color:#fff}
+.tabs2 b{font-size:11.5px;background:var(--bg);border-radius:10px;padding:1px 8px;color:var(--mute)}.tabs2 button[aria-selected=true] b{background:rgba(255,255,255,.18);color:#fff}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:24px}
+/* stepper */
+.stp{display:flex;align-items:center;margin-bottom:18px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 20px}
+.sp{display:flex;align-items:center;gap:10px;border:0;background:none;font-size:13.5px;font-weight:600;color:var(--soft);padding:2px;border-radius:8px}
+.sp i{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:12.5px;background:var(--bg);color:var(--mute);flex:none}
+.sp.cur{color:var(--ink)}.sp.cur i{background:var(--nav);color:#fff}.sp.dn{color:var(--ink)}.sp.dn i{background:var(--green);color:#fff}.sp:disabled{cursor:default}
+.ln{flex:1;height:2px;background:var(--line);margin:0 14px;border-radius:2px;min-width:16px}.ln.dn{background:var(--green)}
+/* step 1 */
+.g2{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:20px;align-items:start}
+.dz{border:2px dashed #cbd5e1;border-radius:16px;background:linear-gradient(180deg,#fafbff,#f5f7fb);min-height:340px;display:grid;place-items:center;text-align:center;padding:32px;transition:.15s;outline-offset:3px}
+.dz:hover,.dz.drag{border-color:var(--blue);background:#eff6ff}.dz.drag{transform:scale(1.005)}
+.dz .ic{width:68px;height:68px;border-radius:20px;background:linear-gradient(135deg,#2563eb,#6366f1);color:#fff;display:grid;place-items:center;margin:0 auto 18px;box-shadow:0 14px 30px -12px rgba(79,70,229,.6);transition:transform .2s}.dz:hover .ic,.dz.drag .ic{transform:translateY(-4px)}
+.dz h2{font-size:19px;letter-spacing:-.3px}.dz p{color:var(--mute);font-size:14px;margin-top:5px}.dz p u{color:var(--blue);text-decoration:none;font-weight:600}
+.fmt{display:flex;gap:6px;justify-content:center;margin-top:16px}.fmt span{font-size:11.5px;font-weight:600;background:#fff;border:1px solid var(--line);border-radius:6px;padding:3px 9px;color:var(--mute)}
+.alt{display:flex;align-items:center;gap:12px;margin-top:14px;color:var(--soft);font-size:13px}.alt:before,.alt:after{content:'';flex:1;height:1px;background:var(--line)}
+.guide{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px}.guide h3{font-size:14.5px;margin-bottom:12px}
+.guide ul{list-style:none;display:grid;gap:10px;font-size:13.5px;color:#374151}.guide li{display:flex;gap:10px;line-height:1.45}.guide li i{font-style:normal;width:20px;height:20px;border-radius:50%;background:#dcfce7;color:var(--green);display:grid;place-items:center;font-size:11px;flex:none;margin-top:1px}
+.lock{margin-top:16px;display:flex;gap:10px;background:#eff6ff;border-radius:10px;padding:12px;font-size:13px;color:#1e40af;line-height:1.45}
+.tpls{display:grid;gap:8px;margin-top:16px}
+.btn{height:38px;padding:0 16px;border-radius:9px;border:1px solid var(--line);background:#fff;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}.btn:hover{background:var(--bg)}
+.btn.p{background:linear-gradient(135deg,#2563eb,#4f46e5);border-color:transparent;color:#fff;box-shadow:0 6px 16px -8px rgba(79,70,229,.8)}.btn.p:hover{filter:brightness(1.05)}.btn.p[aria-disabled=true]{background:#bfd0f7;box-shadow:none;cursor:not-allowed;filter:none}
+/* step 2 */
+.fh{display:flex;align-items:center;gap:14px;margin-bottom:18px}.fh .fi{width:42px;height:42px;border-radius:11px;background:#dcfce7;display:grid;place-items:center;font-size:18px;flex:none}
+.fh b{display:block;font-size:15px}.fh span{font-size:13px;color:var(--mute)}.fh .btn{margin-left:auto;height:34px}
+.mp{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start}
+.mt{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.mr{display:grid;grid-template-columns:minmax(0,1fr) 24px 220px;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid #f3f4f6}.mr:last-child{border:0}
+.mr.hd{background:#fafbfc;font-size:12px;font-weight:600;color:var(--mute);padding:9px 16px}
+.mr .src b{display:block;font-size:14px}.mr .src span{display:block;font-size:12px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mr .ar{color:var(--soft);text-align:center}
+.mr select{height:36px;border:1px solid var(--line);border-radius:8px;padding:0 8px;font-size:13.5px;background:#fff;width:100%}.mr select.ig{color:var(--soft)}
+.sm{background:#fafbfc;border:1px solid var(--line);border-radius:12px;padding:16px;position:sticky;top:0}.sm h4{font-size:13px;margin-bottom:10px}
+.rq{display:flex;align-items:center;gap:8px;font-size:13.5px;padding:5px 0}.rq i{font-style:normal;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;background:var(--line);color:var(--mute)}.rq.ok i{background:var(--green);color:#fff}.rq.no i{background:#fee2e2;color:var(--red)}
+.act{display:flex;align-items:center;gap:10px;margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}.act .sp2{flex:1;font-size:13.5px;color:var(--mute)}.act .sp2 b{color:var(--ink)}
+/* step 3 */
+.rs{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.rc{display:flex;align-items:center;gap:14px;background:#fff;border:1.5px solid var(--line);border-radius:12px;padding:14px 16px;text-align:left}.rc:hover{border-color:#c7d2fe}.rc[aria-pressed=true]{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.rc i{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-style:normal;font-size:17px}.rc b{display:block;font-size:24px;letter-spacing:-.6px;line-height:1.1}.rc span{font-size:13px;color:var(--mute)}
+.tw{border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:340px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}th{position:sticky;top:0;background:#fafbfc;text-align:left;font-size:12px;color:var(--mute);font-weight:600;padding:9px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px 14px;border-bottom:1px solid #f3f4f6;vertical-align:top}tr:last-child td{border:0}tr.er td:first-child{box-shadow:inset 3px 0 0 var(--red)}tr.wn td:first-child{box-shadow:inset 3px 0 0 var(--amber)}
+.tg{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;white-space:nowrap}
+.t-green{background:#dcfce7;color:#166534}.t-amber{background:#fef3c7;color:#92400e}.t-red{background:#fee2e2;color:#991b1b}.t-blue{background:#e0e7ff;color:#3730a3}.t-gray{background:#f3f4f6;color:#4b5563}
+.msg{color:#7f1d1d;font-size:13px}.msg.w{color:#92400e}
+.opt{display:flex;align-items:center;gap:10px;font-size:13.5px}.opt input{width:16px;height:16px;accent-color:var(--blue)}
+.link{border:0;background:none;color:var(--blue);font-weight:600;font-size:13.5px;padding:0}.link:hover{text-decoration:underline}
+/* step 4 */
+.fin{text-align:center;padding:36px 16px 16px;max-width:520px;margin:0 auto}
+.ring{width:84px;height:84px;margin:0 auto 22px;position:relative}.ring svg{transform:rotate(-90deg)}.ring b{position:absolute;inset:0;display:grid;place-items:center;font-size:17px}
+.fin h2{font-size:22px;letter-spacing:-.4px;margin-bottom:6px}.fin p{color:var(--mute);font-size:14.5px;line-height:1.5}
+.pb{height:8px;background:#eef0f3;border-radius:6px;overflow:hidden;margin:22px 0 8px}.pb i{display:block;height:100%;width:0;background:linear-gradient(90deg,#2563eb,#6366f1);border-radius:6px;transition:width .2s}
+.tick{width:84px;height:84px;border-radius:50%;background:#dcfce7;color:var(--green);display:grid;place-items:center;font-size:38px;margin:0 auto 22px;animation:pop .4s cubic-bezier(.2,1.4,.4,1)}@keyframes pop{from{transform:scale(.4);opacity:0}}
+.out{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:24px 0}.out div{background:var(--bg);border-radius:12px;padding:14px}.out b{display:block;font-size:24px;letter-spacing:-.6px}.out span{font-size:12.5px;color:var(--mute)}
+.fa{display:flex;gap:10px;justify-content:center}
+/* history */
+.ht td:first-child{font-weight:600}.ht .fn{display:flex;align-items:center;gap:10px}.ht .fn i{width:34px;height:34px;border-radius:9px;background:#dbeafe;display:grid;place-items:center;font-style:normal;flex:none;font-size:15px}.ht .fn small{display:block;font-weight:400;color:var(--mute);font-size:12px}
+.ht .btn{height:32px;padding:0 12px;font-size:12.5px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--nav);color:#fff;padding:10px 18px;border-radius:10px;font-size:13.5px;opacity:0;transition:.2s;pointer-events:none;z-index:30}.toast.on{opacity:1;transform:translateX(-50%)}
+@media(max-width:1000px){.g2,.mp{grid-template-columns:1fr}.sm{position:static}.rs{grid-template-columns:1fr}.sp span{display:none}}
+@media(max-width:860px){.sb{display:none}.top .s{display:none}.wrap{padding:20px 16px}.mr{grid-template-columns:1fr 20px 150px}.out{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+ <aside class="sb"><div class="logo"><i>🌐</i>Pathly</div>
+  <nav aria-label="Main">
+   <a href="pathly_dso_dashboard.html"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v5H2V2zm0 7h5v5H2V9zm7-7h5v5H9V2zm0 7h5v5H9V9z"/></svg>Dashboard</a>
+   <a href="pathly_student_center.html"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="2.5"/><path d="M3 13c0-3 10-3 10 0"/></svg>Students</a>
+   <a href="pathly_dso_requests_hub.html"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2L2 5v4c0 3 2.5 5.5 6 6 3.5-.5 6-3 6-6V5L8 2z"/></svg>Action Requests</a>
+   <a href="#"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="2.5"/><path d="M3 13c0-3 10-3 10 0"/></svg>Student Requests</a>
+   <a href="pathly_dso_messaging.html"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v8a1 1 0 01-1 1H3a1 1 0 01-1-1V3zm0 0l6 5 6-5"/></svg>Messaging</a>
+   <div class="lab">Utility</div>
+   <a href="#" class="on" aria-current="page"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 13V7l5-5 5 5v6H9V9H7v4H3z"/></svg>Data Imports</a>
+   <a href="#"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2"/><path d="M8 2v2M8 12v2M2 8h2M12 8h2"/></svg>Admin Settings</a>
+  </nav></aside>
+ <div class="main">
+  <header class="top"><div class="s">Search student records, tasks, documents…</div><div class="chip"><span class="av" style="width:28px;height:28px;font-size:11px;background:linear-gradient(135deg,#6366f1,#8b5cf6)">QD</span>QA DSO Test</div></header>
+  <div class="scroll" id="scroll"><div class="wrap">
+   <div class="hh"><span class="hi"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 11V2M4.5 5.5L8 2l3.5 3.5M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3"/></svg></span><div><h1>Data Imports</h1><p class="sub">Onboard or update students in bulk. Every row is checked before anything is saved.</p></div></div>
+   <div class="tabs2" role="tablist" aria-label="Data imports"><button role="tab" id="tb-new" aria-selected="true" data-v="new"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 11V2M4.5 5.5L8 2l3.5 3.5M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3"/></svg>New import</button><button role="tab" id="tb-hist" aria-selected="false" data-v="hist">History<b id="hc"></b></button></div>
+   <div id="vnew" role="tabpanel" aria-labelledby="tb-new"><div class="stp" id="stp"></div><div id="pane"></div></div>
+   <div id="vhist" role="tabpanel" aria-labelledby="tb-hist" hidden></div>
+  </div></div>
+ </div>
+</div>
+<input type="file" id="fi" accept=".csv,.xlsx,.xls" hidden />
+<div class="toast" id="toast" role="status"></div>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const FIELDS=[
+ {k:'sid',l:'Student ID',req:1,a:['student id','studentid','student_id','id']},
+ {k:'fn',l:'First name',req:1,a:['first name','firstname','first_name','given name']},
+ {k:'ln',l:'Last name',req:1,a:['last name','lastname','last_name','surname','family name']},
+ {k:'em',l:'Email',req:1,a:['email','e-mail','email address']},
+ {k:'sev',l:'SEVIS ID',a:['sevis','sevis id','sevis_id']},
+ {k:'prog',l:'Program',a:['program','major','degree']},
+ {k:'vis',l:'Visa type',a:['visa','visa type','status']},
+ {k:'end',l:'Program end date',a:['program end','end date','program end date','program_end_date','i-20 end']}];
+const SAMPLE=`Student ID,First Name,Last Name,Email,SEVIS ID,Major,Visa,Program End,Advisor
+S2041,Amara,Okafor,amara.okafor@university.edu,N0012345678,BS Computer Science,F-1,2027-05-15,K. Rivera
+S2042,Wei,Zhang,wei.zhang@university.edu,N0012345679,MS Data Science,F-1,2026-12-18,K. Rivera
+S2043,Lucia,Fernandez,lucia.fernandez@university.edu,N0012345680,BA Economics,F-1,2027-05-15,J. Hart
+S2044,Rahul,Mehta,rahul.mehta@university,N0012345681,BS Biology,F-1,2028-05-12,J. Hart
+S2045,Fatima,,fatima.alhassan@university.edu,N0012345682,MS Engineering,J-1,2027-08-01,K. Rivera
+S2046,Tomas,Novak,tomas.novak@university.edu,,BA Physics,F-1,2027-05-15,J. Hart
+S2047,Yuki,Tanaka,yuki.tanaka@university.edu,N00123,BS Design,F-1,05/15/2027,K. Rivera
+S2041,Amara,Okafor,a.okafor2@university.edu,N0012345678,BS Computer Science,F-1,2027-05-15,K. Rivera
+S1002,Priya,Patel,ppatel@university.edu,N0099887766,BS Computer Science,F-1,2026-12-20,J. Hart
+S2049,Daniel,Reyes,daniel.reyes@university.edu,N0012345684,MS Public Health,F-1,not a date,K. Rivera
+S2050,Grace,Kim,grace.kim@university.edu,N0012345685,BS Nursing,F-1,2028-05-12,J. Hart
+S2051,Omar,Haddad,omar.haddad@university.edu,N0012345686,MBA,F-1,2027-05-15,K. Rivera`;
+const EXISTING=new Set(['S1002','S1001']);
+const H=[
+ {f:'fall_2026_roster.csv',by:'QA DSO Test',d:'Nov 18, 2026 · 2:14 PM',n:1284,ok:1271,wn:9,er:4,st:'With errors'},
+ {f:'sevis_updates_oct.xlsx',by:'K. Rivera',d:'Oct 30, 2026 · 9:02 AM',n:312,ok:312,wn:0,er:0,st:'Completed'},
+ {f:'transfer_students.csv',by:'QA DSO Test',d:'Oct 12, 2026 · 4:40 PM',n:58,ok:0,wn:0,er:58,st:'Failed'},
+ {f:'summer_cohort.csv',by:'J. Hart',d:'Jun 3, 2026 · 11:15 AM',n:204,ok:198,wn:6,er:0,st:'Completed'}];
+const IM={step:1,file:null,headers:[],rows:[],map:{},res:[],flt:'all',skip:true,run:0};
+const STEPS=['Upload','Map columns','Review','Import'];
+let V='new',timer=null;
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on'),2200)}
+function parseCSV(t){const rows=[];let r=[],c='',q=false;for(let i=0;i<t.length;i++){const ch=t[i];
+ if(q){if(ch==='"'){if(t[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}
+ else if(ch==='"')q=true;else if(ch===','){r.push(c);c=''}else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;r.push(c);c='';if(r.some(x=>x.trim()!==''))rows.push(r);r=[]}else c+=ch}
+ r.push(c);if(r.some(x=>x.trim()!==''))rows.push(r);return rows}
+function download(name,text){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv'}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
+const csvq=v=>/[",\n]/.test(v)?'"'+String(v).replace(/"/g,'""')+'"':v;
+function load(name,size,text){const g=parseCSV(text);if(g.length<2){return toast('That file has no data rows')}
+ IM.file={name,size};IM.headers=g[0].map(h=>h.trim());IM.rows=g.slice(1);IM.map={};
+ IM.headers.forEach(h=>{const n=h.toLowerCase().replace(/\s+/g,' ');const f=FIELDS.find(x=>x.l.toLowerCase()===n||x.a.includes(n));IM.map[h]=f&&!Object.values(IM.map).includes(f.k)?f.k:'ign'});
+ IM.step=2;render();$('scroll').scrollTop=0}
+function handleFile(f){if(!f)return;const ext=f.name.split('.').pop().toLowerCase();
+ if(!['csv','xlsx','xls'].includes(ext))return toast('Unsupported file type. Use CSV, XLSX or XLS.');
+ if(f.size>25*1024*1024)return toast('File is larger than 25 MB');
+ if(ext==='csv'){const r=new FileReader();r.onload=()=>load(f.name,f.size,String(r.result));r.readAsText(f)}
+ else{toast('Excel is parsed on the server. Using sample data for this demo.');load(f.name,f.size,SAMPLE)}}
+function mapped(){const m={};Object.entries(IM.map).forEach(([h,k])=>{if(k!=='ign')m[k]=IM.headers.indexOf(h)});return m}
+function validate(){const m=mapped(),seen={};IM.res=IM.rows.map((row,i)=>{const g=k=>m[k]==null?'':(row[m[k]]||'').trim();
+ const rec={sid:g('sid'),fn:g('fn'),ln:g('ln'),em:g('em'),sev:g('sev'),prog:g('prog'),vis:g('vis'),end:g('end')};const er=[],wn=[];
+ FIELDS.filter(f=>f.req).forEach(f=>{if(!rec[f.k])er.push(`${f.l} is missing`)});
+ if(rec.em&&!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(rec.em))er.push('Email looks invalid');
+ if(rec.end&&!(/^\d{4}-\d{2}-\d{2}$/.test(rec.end)||/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(rec.end))||(rec.end&&isNaN(new Date(rec.end))))er.push('Program end date isn’t a valid date');
+ if(rec.sev&&!/^N\d{10}$/.test(rec.sev))er.push('SEVIS ID must be N followed by 10 digits');
+ if(rec.sid){if(seen[rec.sid])er.push(`Duplicate Student ID (also row ${seen[rec.sid]})`);else seen[rec.sid]=i+2}
+ if(!rec.sev&&m.sev!=null)wn.push('No SEVIS ID. You can add it later');
+ if(rec.sid&&EXISTING.has(rec.sid))wn.push('Already in Pathly. Record will be updated');
+ return{i:i+2,rec,er,wn,s:er.length?'er':wn.length?'wn':'ok'}})}
+const cnt=()=>({ok:IM.res.filter(r=>r.s==='ok').length,wn:IM.res.filter(r=>r.s==='wn').length,er:IM.res.filter(r=>r.s==='er').length});
+const sz=b=>b>1048576?(b/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b/1024))+' KB';
+function renderStepper(){let h='';STEPS.forEach((s,i)=>{const n=i+1,c=IM.step===n?'cur':IM.step>n?'dn':'';
+ h+=`<button class="sp ${c}" data-go="${n}" ${IM.step>n&&IM.step<4?'':'disabled'} ${IM.step===n?'aria-current="step"':''}><i>${IM.step>n?'✓':n}</i><span>${s}</span></button>`;if(i<3)h+=`<div class="ln ${IM.step>n?'dn':''}"></div>`});$('stp').innerHTML=h}
+function render(){renderStepper();const p=$('pane');
+ if(IM.step===1)p.innerHTML=`<div class="g2"><div>
+  <div class="dz" id="dz" tabindex="0" role="button" aria-label="Choose a file to upload"><div><div class="ic"><svg width="30" height="30" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 11V2M4.5 5.5L8 2l3.5 3.5M2 10v3a1 1 0 001 1h10a1 1 0 001-1v-3"/></svg></div><h2>Drop your roster here</h2><p>or <u>browse your computer</u></p><div class="fmt"><span>CSV</span><span>XLSX</span><span>XLS</span><span>Up to 25 MB</span></div></div></div>
+  <div class="alt">or</div><div style="display:flex;justify-content:center;margin-top:14px"><button class="btn" id="smp">✨ Try it with a sample file</button></div></div>
+  <aside class="guide"><h3>Before you upload</h3><ul><li><i>✓</i><span><b>Four columns are required:</b> Student ID, First name, Last name and Email.</span></li><li><i>✓</i><span>Dates can be <b>YYYY-MM-DD</b> or <b>MM/DD/YYYY</b>. SEVIS IDs look like <b>N0012345678</b>.</span></li><li><i>✓</i><span>Existing students (matched by Student ID) are <b>updated</b>. New ones are <b>created</b>.</span></li><li><i>✓</i><span>Your column names don’t have to match. You’ll map them next.</span></li></ul>
+  <div class="lock"><span aria-hidden="true">🔒</span><span><b>Nothing is saved until you confirm.</b> You’ll review every row first.</span></div>
+  <div class="tpls"><button class="btn" data-tpl="csv">⬇ Download CSV template</button><button class="btn" data-tpl="xlsx">⬇ Download Excel template</button></div></aside></div>`;
+ else if(IM.step===2){const m=mapped(),reqs=FIELDS.filter(f=>f.req),miss=reqs.filter(f=>m[f.k]==null),matched=Object.values(IM.map).filter(k=>k!=='ign').length;
+  p.innerHTML=`<div class="card"><div class="fh"><span class="fi">📄</span><div><b>${esc(IM.file.name)}</b><span>${sz(IM.file.size)} · ${IM.rows.length.toLocaleString()} rows · ${IM.headers.length} columns</span></div><button class="btn" data-go="1">Replace file</button></div>
+  <div class="mp"><div class="mt"><div class="mr hd"><span>Column in your file</span><span></span><span>Pathly field</span></div>${IM.headers.map((h,i)=>{const k=IM.map[h];return`<div class="mr"><div class="src"><b>${esc(h)}</b><span>${esc(IM.rows.slice(0,2).map(r=>r[i]).filter(Boolean).join(' · '))}</span></div><span class="ar">→</span><select data-col="${esc(h)}" class="${k==='ign'?'ig':''}" aria-label="Map ${esc(h)}"><option value="ign" ${k==='ign'?'selected':''}>Don’t import</option>${FIELDS.map(f=>`<option value="${f.k}" ${k===f.k?'selected':''} ${Object.values(IM.map).includes(f.k)&&k!==f.k?'disabled':''}>${f.l}${f.req?' *':''}</option>`).join('')}</select></div>`}).join('')}</div>
+  <aside class="sm"><h4>${matched} of ${IM.headers.length} columns matched</h4>${reqs.map(f=>`<div class="rq ${m[f.k]!=null?'ok':'no'}"><i>${m[f.k]!=null?'✓':'!'}</i>${f.l}</div>`).join('')}<p style="font-size:12.5px;color:var(--mute);margin-top:12px;line-height:1.45">We matched what we could by name. Anything marked “Don’t import” is ignored.</p></aside></div>
+  <div class="act"><button class="btn" data-go="1">Back</button><span class="sp2">${miss.length?`Map <b>${miss.map(f=>f.l).join(', ')}</b> to continue`:'Required columns are mapped.'}</span><button class="btn p" id="to3" aria-disabled="${!!miss.length}">Review rows →</button></div></div>`}
+ else if(IM.step===3){const c=cnt(),rows=IM.res.filter(r=>IM.flt==='all'||r.s===IM.flt),imp=c.ok+c.wn+(IM.skip?0:c.er),blocked=!IM.skip&&c.er>0;
+  p.innerHTML=`<div class="rs">${[['all','All rows',IM.res.length,'#dbeafe','📋'],['ok','Ready',c.ok,'#dcfce7','✓'],['wn','Warnings',c.wn,'#fef3c7','⚠'],['er','Errors',c.er,'#fee2e2','✕']].slice(0,0).join('')}
+  ${[['ok','Ready to import',c.ok,'#dcfce7','✓'],['wn','Needs a look',c.wn,'#fef3c7','!'],['er','Errors',c.er,'#fee2e2','✕']].map(([k,l,n,bg,ic])=>`<button class="rc" data-flt="${k}" aria-pressed="${IM.flt===k}"><i style="background:${bg}">${ic}</i><div><b>${n}</b><span>${l}</span></div></button>`).join('')}</div>
+  <div class="card" style="padding:20px"><div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap"><b style="font-size:15px">${IM.flt==='all'?'All rows':{ok:'Ready rows',wn:'Rows with warnings',er:'Rows with errors'}[IM.flt]} <span style="color:var(--mute);font-weight:400">· ${rows.length}</span></b>${IM.flt!=='all'?'<button class="link" data-flt="all">Show all</button>':''}${c.er?'<button class="link" style="margin-left:auto" id="rep">⬇ Download error report</button>':''}</div>
+  <div class="tw"><table><thead><tr><th>Row</th><th>Student</th><th>Student ID</th><th>Email</th><th>Status</th><th>Details</th></tr></thead><tbody>${rows.map(r=>`<tr class="${r.s}"><td>${r.i}</td><td><b>${esc((r.rec.fn+' '+r.rec.ln).trim()||'—')}</b></td><td>${esc(r.rec.sid||'—')}</td><td>${esc(r.rec.em||'—')}</td><td><span class="tg ${r.s==='ok'?'t-green':r.s==='wn'?'t-amber':'t-red'}">${r.s==='ok'?'Ready':r.s==='wn'?'Warning':'Error'}</span></td><td>${r.er.map(x=>`<div class="msg">${esc(x)}</div>`).join('')}${r.wn.map(x=>`<div class="msg w">${esc(x)}</div>`).join('')}</td></tr>`).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--mute);padding:28px">No rows here.</td></tr>'}</tbody></table></div>
+  ${c.er?`<label class="opt" style="margin-top:16px"><input type="checkbox" id="skip" ${IM.skip?'checked':''}/><span><b>Skip rows with errors</b> and import everything else (recommended)</span></label>`:''}
+  <div class="act"><button class="btn" data-go="2">Back</button><span class="sp2">${blocked?'Fix your file or skip the error rows to continue':`<b>${imp.toLocaleString()}</b> students will be imported${c.er&&IM.skip?`, ${c.er} skipped`:''}`}</span><button class="btn p" id="go" aria-disabled="${blocked||!imp}">Import ${imp.toLocaleString()} students</button></div></div>`}
+ else p.innerHTML=`<div class="card"><div class="fin" id="fin"></div></div>`;
+ if(IM.step===4)renderFin()}
+function renderFin(){const c=cnt(),n=c.ok+c.wn+(IM.skip?0:c.er),f=$('fin');
+ if(IM.run<100){f.innerHTML=`<div class="ring"><svg width="84" height="84" viewBox="0 0 84 84"><circle cx="42" cy="42" r="36" fill="none" stroke="#eef0f3" stroke-width="7"/><circle cx="42" cy="42" r="36" fill="none" stroke="url(#g)" stroke-width="7" stroke-linecap="round" stroke-dasharray="226" stroke-dashoffset="${226-226*IM.run/100}"/><defs><linearGradient id="g"><stop stop-color="#2563eb"/><stop offset="1" stop-color="#6366f1"/></linearGradient></defs></svg><b>${IM.run}%</b></div><h2>Importing students…</h2><p>${Math.round(n*IM.run/100).toLocaleString()} of ${n.toLocaleString()} saved. Keep this page open.</p>`;return}
+ const upd=IM.res.filter(r=>r.s!=='er'&&EXISTING.has(r.rec.sid)).length;
+ f.innerHTML=`<div class="tick">✓</div><h2>Import complete</h2><p>${n.toLocaleString()} students were saved from <b>${esc(IM.file.name)}</b>.</p><div class="out"><div><b>${(n-upd).toLocaleString()}</b><span>Created</span></div><div><b>${upd}</b><span>Updated</span></div><div><b>${IM.skip?c.er:0}</b><span>Skipped</span></div></div><div class="fa"><button class="btn" id="again">Import another file</button><a class="btn p" href="pathly_student_center.html" style="text-decoration:none">View students →</a></div>`}
+function startImport(){const c=cnt();IM.step=4;IM.run=0;render();const n=c.ok+c.wn+(IM.skip?0:c.er);
+ const fin=()=>{IM.run=100;H.unshift({f:IM.file.name,by:'QA DSO Test',d:new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' · '+new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}),n:IM.rows.length,ok:c.ok,wn:c.wn,er:IM.skip?c.er:0,st:c.er&&IM.skip?'With errors':'Completed',isNew:true});renderFin();renderStepper();$('hc').textContent=H.length};
+ if(matchMedia('(prefers-reduced-motion:reduce)').matches)return fin();
+ clearInterval(timer);timer=setInterval(()=>{IM.run=Math.min(100,IM.run+4+Math.floor(Math.random()*7));if(IM.run>=100){clearInterval(timer);fin()}else renderFin()},120)}
+function renderHist(){$('hc').textContent=H.length;
+ $('vhist').innerHTML=`<div class="card" style="padding:8px 8px 4px"><div class="tw" style="max-height:none;border:0"><table class="ht"><thead><tr><th>File</th><th>Imported by</th><th>Rows</th><th>Result</th><th>Status</th><th></th></tr></thead><tbody>${H.map((h,i)=>`<tr><td><div class="fn"><i>${/xls/.test(h.f)?'📊':'📄'}</i><div>${esc(h.f)}${h.isNew?' <span class="tg t-gray">New</span>':''}<small>${h.d}</small></div></div></td><td>${h.by}</td><td>${h.n.toLocaleString()}</td><td style="white-space:nowrap"><span style="color:#166534">${h.ok.toLocaleString()} saved</span>${h.wn?` · <span style="color:#92400e">${h.wn} warnings</span>`:''}${h.er?` · <span style="color:#991b1b">${h.er} errors</span>`:''}</td><td><span class="tg ${h.st==='Completed'?'t-green':h.st==='Failed'?'t-red':'t-amber'}">${h.st}</span></td><td style="text-align:right">${h.er?`<button class="btn" data-hrep="${i}">⬇ Error report</button>`:''}</td></tr>`).join('')}</tbody></table></div></div>`}
+function setView(v){V=v;$('vnew').hidden=v!=='new';$('vhist').hidden=v!=='hist';['new','hist'].forEach(k=>$('tb-'+k).setAttribute('aria-selected',k===v));if(v==='hist')renderHist();$('scroll').scrollTop=0}
+function reset(){clearInterval(timer);Object.assign(IM,{step:1,file:null,headers:[],rows:[],map:{},res:[],flt:'all',skip:true,run:0});render()}
+document.addEventListener('click',e=>{const t=e.target;let b;
+ if(b=t.closest('[data-v]'))return setView(b.dataset.v);
+ if(t.closest('#dz'))return $('fi').click();
+ if(t.closest('#smp'))return load('sample_roster.csv',SAMPLE.length,SAMPLE);
+ if(b=t.closest('[data-tpl]')){if(b.dataset.tpl==='csv')download('pathly_roster_template.csv','Student ID,First Name,Last Name,Email,SEVIS ID,Program,Visa,Program End\nS0001,Jane,Doe,jane.doe@university.edu,N0012345678,BS Biology,F-1,2027-05-15\n');else toast('Excel template download (wire to your file service)');return}
+ if(b=t.closest('[data-go]')){const n=+b.dataset.go;if(n===1)return reset();if(n<IM.step){IM.step=n;return render()}}
+ if(t.closest('#to3')&&t.closest('#to3').getAttribute('aria-disabled')==='false'){validate();IM.flt='all';IM.step=3;render();return $('scroll').scrollTo({top:0})}
+ if(t.closest('#to3'))return toast('Map the required columns first');
+ if(b=t.closest('[data-flt]')){IM.flt=IM.flt===b.dataset.flt?'all':b.dataset.flt;return render()}
+ if(t.closest('#rep')){const er=IM.res.filter(r=>r.s==='er');return download('import_errors.csv','Row,Student ID,Email,Error\n'+er.map(r=>[r.i,r.rec.sid,r.rec.em,r.er.join('; ')].map(csvq).join(',')).join('\n'))}
+ if(t.closest('#go')){if(t.closest('#go').getAttribute('aria-disabled')==='true')return toast('Skip the error rows to continue');return startImport()}
+ if(t.closest('#again')){reset();return $('scroll').scrollTo({top:0})}
+ if(b=t.closest('[data-hrep]'))return toast('Error report downloaded (demo)');
+});
+document.addEventListener('change',e=>{const t=e.target;
+ if(t.id==='fi'){handleFile(t.files[0]);t.value=''}
+ else if(t.dataset.col){IM.map[t.dataset.col]=t.value;render()}
+ else if(t.id==='skip'){IM.skip=t.checked;render()}});
+document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.id==='dz'){e.preventDefault();$('fi').click()}});
+document.addEventListener('dragover',e=>{const d=e.target.closest&&e.target.closest('#dz');if(d){e.preventDefault();d.classList.add('drag')}});
+document.addEventListener('dragleave',e=>{const d=e.target.closest&&e.target.closest('#dz');if(d)d.classList.remove('drag')});
+document.addEventListener('drop',e=>{const d=e.target.closest&&e.target.closest('#dz');if(d){e.preventDefault();d.classList.remove('drag');handleFile(e.dataTransfer.files[0])}});
+render();renderHist();
+</script>
+</body>
+</html>

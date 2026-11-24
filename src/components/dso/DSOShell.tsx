@@ -44,7 +44,7 @@ export function DSOShell({
         />
 
         {/* Scrollable main content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto flex flex-col">
           {children}
         </main>
       </div>

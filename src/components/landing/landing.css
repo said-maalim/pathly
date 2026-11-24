@@ -98,10 +98,11 @@ html {
 
 .lp-btn-demo {
   background: #fff;
-  color: var(--lp-navy);
+  color: #111827 !important;
 }
 .lp-btn-demo:hover {
   background: #eef2ff;
+  color: #111827 !important;
 }
 
 /* ── Header / Nav ──────────────────────────────────────────────────────── */

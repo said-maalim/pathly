@@ -167,14 +167,32 @@ export function UniversityDSOPortal({ onNavigate, onLogout, userData }: Universi
         return (
           <DSORequestActionsDashboard
             onBack={() => navigateTo('dashboard')}
-            onCreateNew={() => navigateTo('create-request-action')}
+            onCreateNew={() => navigateTo('request-actions-dashboard')}
             onViewDetail={(requestId) => { setSelectedRequestId(requestId); navigateTo('request-action-detail'); }}
             userData={userData}
+            students={mappedStudents.map(s => ({
+              id: s.id,
+              name: s.name,
+              email: s.email,
+            }))}
           />
         );
 
       case 'create-request-action':
-        return <DSOCreateRequestAction onBack={() => navigateTo('request-actions-dashboard')} userData={userData} targetStudent={targetStudentForRequest} />;
+        // New request is now the second tab in DSORequestActionsDashboard
+        return (
+          <DSORequestActionsDashboard
+            onBack={() => navigateTo('dashboard')}
+            onCreateNew={() => navigateTo('request-actions-dashboard')}
+            onViewDetail={(requestId) => { setSelectedRequestId(requestId); navigateTo('request-action-detail'); }}
+            userData={userData}
+            students={mappedStudents.map(s => ({
+              id: s.id,
+              name: s.name,
+              email: s.email,
+            }))}
+          />
+        );
 
       case 'request-action-detail':
         if (!selectedRequestId) { navigateTo('dashboard'); return null; }

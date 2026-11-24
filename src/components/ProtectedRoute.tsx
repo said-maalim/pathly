@@ -9,13 +9,13 @@ import { useUser } from '../context/UserContext';
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
-    /** Which login page to redirect to when unauthenticated. Defaults to /student-auth */
+    /** Which login page to redirect to when unauthenticated. Defaults to /sign-in */
     redirectTo?: string;
 }
 
 export function ProtectedRoute({
     children,
-    redirectTo = '/student-auth',
+    redirectTo = '/sign-in',
 }: ProtectedRouteProps) {
     const { userData } = useUser();
     const location = useLocation();

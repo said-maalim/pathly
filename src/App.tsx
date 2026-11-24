@@ -22,10 +22,9 @@ import { UniversityPortal } from './components/UniversityPortal';
 import { UniversityStudentPortal } from './components/UniversityStudentPortal';
 import { UniversityDSOPortal } from './components/UniversityDSOPortal';
 import { UniversityChoice } from './components/UniversityChoice';
-import { StudentAuth } from './components/StudentAuth';
-import { DSOAuth } from './components/DSOAuth';
 import { RequestCenterPage } from './components/RequestCenterPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { AccessPortal } from './components/auth/AccessPortal';
 
 // ─── Page-key → URL path mapping ──────────────────────────────────────────────
 // Keeps existing onNavigate('page-key') calls working without modifying components.
@@ -33,8 +32,10 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 const PAGE_PATHS: Record<string, string> = {
   landing: '/',
   'university-choice': '/university-choice',
-  'student-auth': '/student-auth',
-  'dso-auth': '/dso-auth',
+  'sign-in': '/sign-in',
+  // Legacy keys: redirect to unified sign-in page
+  'student-auth': '/sign-in',
+  'dso-auth': '/sign-in',
   'student-portal': '/student-portal',
   'dso-portal': '/dso-portal',
   university: '/university',
@@ -79,14 +80,10 @@ function RouterApp() {
           path="/university-choice"
           element={<UniversityChoice onNavigate={navigate} />}
         />
-        <Route
-          path="/student-auth"
-          element={<StudentAuth onNavigate={navigate} onLogin={handleUserLogin} />}
-        />
-        <Route
-          path="/dso-auth"
-          element={<DSOAuth onNavigate={navigate} onLogin={handleUserLogin} />}
-        />
+        <Route path="/sign-in" element={<AccessPortal />} />
+        {/* Legacy routes → unified sign-in */}
+        <Route path="/student-auth" element={<Navigate to="/sign-in" replace />} />
+        <Route path="/dso-auth" element={<Navigate to="/sign-in" replace />} />
         <Route
           path="/university"
           element={<UniversityPortal onNavigate={navigate} />}
@@ -104,7 +101,7 @@ function RouterApp() {
         <Route
           path="/student-portal"
           element={
-            <ProtectedRoute redirectTo="/student-auth">
+            <ProtectedRoute redirectTo="/sign-in">
               <UniversityStudentPortal
                 onNavigate={navigate}
                 onLogout={() => handleLogout('student-auth')}
@@ -116,7 +113,7 @@ function RouterApp() {
         <Route
           path="/dso-portal"
           element={
-            <ProtectedRoute redirectTo="/dso-auth">
+            <ProtectedRoute redirectTo="/sign-in">
               <UniversityDSOPortal
                 onNavigate={navigate}
                 onLogout={() => handleLogout('dso-auth')}
