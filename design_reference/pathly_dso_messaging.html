@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pathly – DSO Messaging</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--nav:#1a1f2e;--ink:#111827;--mute:#6b7280;--soft:#9ca3af;--line:#e5e7eb;--bg:#f4f5f7;--blue:#2563eb;--green:#16a34a;--amber:#d97706;--red:#dc2626;font-family:'DM Sans',system-ui,sans-serif}
+html,body{height:100%}body{color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased;overflow:hidden}
+button,input,textarea{font-family:inherit;color:inherit}button{cursor:pointer}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:6px}
+.shell{display:flex;height:100vh}
+/* shell */
+.sb{width:220px;background:var(--nav);flex:none;display:flex;flex-direction:column;padding-bottom:16px}
+.logo{display:flex;align-items:center;gap:10px;padding:20px 20px 24px;color:#fff;font-weight:600;font-size:17px}
+.logo i{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#6366f1);display:grid;place-items:center;font-style:normal}
+.sb nav{padding:0 10px;flex:1}.sb a{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:6px;color:#8b92a5;font-size:14px;text-decoration:none;margin-bottom:2px}
+.sb a:hover{color:#fff;background:rgba(255,255,255,.05)}.sb a.on{color:#fff;background:rgba(255,255,255,.08);font-weight:500}
+.sb svg{width:16px;height:16px;flex:none}.sb .lab{font-size:10px;letter-spacing:.08em;color:#4b5563;text-transform:uppercase;padding:16px 12px 6px}
+.badge{margin-left:auto;background:var(--blue);color:#fff;font-size:10px;font-weight:600;padding:1px 7px;border-radius:10px}
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.top{height:56px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:0 24px;flex:none}
+.top .s{flex:1;max-width:520px;height:36px;background:var(--bg);border:1px solid var(--line);border-radius:6px;display:flex;align-items:center;padding:0 12px;color:var(--soft);font-size:13.5px}
+.chip{margin-left:auto;display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border:1px solid var(--line);border-radius:20px;background:var(--bg);font-size:13px;font-weight:500}
+.av{border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;flex:none}
+/* workspace */
+.ws{flex:1;display:grid;grid-template-columns:340px minmax(0,1fr) 300px;min-height:0;background:#fff}
+.pane{display:flex;flex-direction:column;min-height:0;border-right:1px solid var(--line)}
+.ph{padding:18px 20px 12px}
+.ph .row{display:flex;align-items:center;justify-content:space-between}
+.ph h1{font-size:20px;letter-spacing:-.5px}
+.btn{height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--line);background:#fff;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--bg)}.btn.p{background:var(--blue);border-color:var(--blue);color:#fff}.btn.p:hover{background:#1d4ed8}
+.find{margin-top:12px;height:38px;border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;gap:8px;padding:0 12px;background:var(--bg)}
+.find input{border:0;background:none;outline:0;flex:1;font-size:14px}
+.tabs{display:flex;gap:6px;padding:0 20px 12px;border-bottom:1px solid var(--line)}
+.tab{border:1px solid var(--line);background:#fff;border-radius:20px;padding:5px 12px;font-size:12.5px;font-weight:600;color:var(--mute)}
+.tab[aria-pressed=true]{background:var(--nav);border-color:var(--nav);color:#fff}
+.tab b{font-weight:600;opacity:.65;margin-left:3px}
+.list{flex:1;overflow:auto;list-style:none}
+.cv{display:flex;gap:12px;padding:14px 20px;border-bottom:1px solid #f3f4f6;cursor:pointer;position:relative;width:100%;background:none;border-left:0;border-right:0;border-top:0;text-align:left}
+.cv:hover{background:#fafafa}.cv[aria-current=true]{background:#eff6ff}
+.cv[aria-current=true]::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--blue)}
+.cv .m{flex:1;min-width:0}.cv .n{display:flex;justify-content:space-between;gap:8px;font-size:14px;font-weight:600}
+.cv .n time{font-size:12px;color:var(--soft);font-weight:400;flex:none}
+.cv .sj{font-size:13px;color:#374151;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.cv .pv{font-size:12.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.cv.un .n,.cv.un .sj{font-weight:700}.dot{width:8px;height:8px;border-radius:50%;background:var(--blue);flex:none;margin-top:6px}
+.tg{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;margin-top:6px}
+.t-amber{background:#fef3c7;color:#92400e}.t-red{background:#fee2e2;color:#991b1b}.t-green{background:#dcfce7;color:#166534}.t-blue{background:#e0e7ff;color:#3730a3}
+.empty{padding:48px 24px;text-align:center;color:var(--mute);font-size:14px}
+/* thread */
+.th{background:#fafbfc}
+.thh{display:flex;align-items:center;gap:12px;padding:14px 24px;background:#fff;border-bottom:1px solid var(--line)}
+.back{display:none;border:0;background:none;font-size:20px}
+.thh h2{font-size:16px;letter-spacing:-.2px}.thh small{color:var(--mute);font-size:13px}
+.thh .acts{margin-left:auto;display:flex;gap:8px}
+.link{display:flex;align-items:center;gap:10px;margin:16px 24px 0;padding:11px 14px;background:#fff;border:1px solid var(--line);border-left:3px solid var(--blue);border-radius:10px;font-size:13px}
+.link[hidden]{display:none}.link b{font-weight:600}.link span.s{margin-left:auto}
+.msgs{flex:1;overflow:auto;padding:20px 24px;display:flex;flex-direction:column;gap:6px}
+.day{align-self:center;font-size:12px;color:var(--soft);margin:10px 0 6px}
+.b{max-width:68%;padding:11px 15px;border-radius:16px;font-size:14.5px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.b.s{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
+.b.d{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:4px}
+.tm{font-size:11.5px;color:var(--soft);margin:0 4px 8px}.tm.d{align-self:flex-end}
+.comp{margin:0 24px 20px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 6px 20px -12px rgba(26,31,46,.25);position:relative}
+.comp:focus-within{border-color:#93b4f5;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.comp textarea{width:100%;border:0;outline:0;resize:none;padding:14px 16px 6px;font-size:14.5px;min-height:56px;max-height:160px;background:none}
+.cbar{display:flex;align-items:center;gap:6px;padding:8px 10px 10px 12px}
+.cbar .hint{margin-left:auto;font-size:12px;color:var(--soft);margin-right:6px}
+.ib{height:32px;padding:0 10px;border:0;background:none;border-radius:6px;font-size:13px;font-weight:600;color:var(--mute);display:flex;align-items:center;gap:6px}.ib:hover{background:var(--bg);color:var(--ink)}
+.menu{position:absolute;left:10px;bottom:56px;width:300px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 44px -14px rgba(26,31,46,.35);padding:6px;display:none;z-index:5}
+.menu.open{display:block}.menu button{display:block;width:100%;text-align:left;border:0;background:none;padding:9px 10px;border-radius:8px;font-size:13.5px}
+.menu button:hover{background:var(--bg)}.menu small{display:block;color:var(--mute);font-size:12px}
+/* context */
+.cx{border-right:0;background:#fff;overflow:auto;padding:22px 20px}
+.cx .who{text-align:center;padding-bottom:18px;border-bottom:1px solid var(--line)}
+.cx .who .av{width:56px;height:56px;font-size:18px;margin:0 auto 10px}
+.cx h3{font-size:16px}.cx .em{font-size:13px;color:var(--mute)}
+.cx h4{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--soft);margin:20px 0 10px}
+.kv{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;padding:7px 0}.kv span:first-child{color:var(--mute)}.kv span:last-child{font-weight:600;text-align:right}
+.rq{padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:13px;margin-bottom:8px}.rq b{display:block;font-weight:600;margin-bottom:5px}
+.cx .btn{width:100%;justify-content:center;margin-top:6px}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--nav);color:#fff;padding:10px 18px;border-radius:10px;font-size:13.5px;opacity:0;transition:.2s;pointer-events:none}.toast.on{opacity:1;transform:translateX(-50%)}
+/* empty state + new button + modal */
+.ws:not(.sel){grid-template-columns:340px minmax(0,1fr)}.ws:not(.sel) .cx{display:none}
+.nb{height:36px;padding:0 14px 0 8px;border:0;border-radius:18px;background:linear-gradient(135deg,#2563eb,#6366f1);color:#fff;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:8px;box-shadow:0 6px 16px -6px rgba(79,70,229,.7);transition:transform .15s,box-shadow .15s}
+.nb:hover{transform:translateY(-1px);box-shadow:0 10px 20px -8px rgba(79,70,229,.8)}
+.nb i{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.22);display:grid;place-items:center;transition:transform .25s}.nb:hover i{transform:rotate(90deg)}
+.nb kbd{font:600 10.5px 'DM Sans',sans-serif;background:rgba(255,255,255,.2);border-radius:4px;padding:1px 5px;margin-left:2px}
+.es{flex:1;display:grid;place-items:center;padding:32px;background:radial-gradient(circle at 50% 30%,#eef2ff 0,#fafbfc 60%)}
+.es>div{max-width:440px;text-align:center}
+.es .ic{width:64px;height:64px;border-radius:20px;margin:0 auto 18px;display:grid;place-items:center;background:linear-gradient(135deg,#2563eb,#6366f1);color:#fff;box-shadow:0 14px 30px -12px rgba(79,70,229,.6)}
+.es h2{font-size:20px;letter-spacing:-.4px;margin-bottom:6px}.es p{color:var(--mute);font-size:14px;line-height:1.5}
+.es .st{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:24px 0 18px}
+.es .st button{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 8px;text-align:center}.es .st button:hover{border-color:#93b4f5;box-shadow:0 6px 16px -10px rgba(37,99,235,.5)}
+.es .st b{display:block;font-size:22px;letter-spacing:-.5px}.es .st span{font-size:12px;color:var(--mute)}
+.es .acts{display:flex;gap:8px;justify-content:center}
+.ov{position:fixed;inset:0;background:rgba(17,24,39,.45);backdrop-filter:blur(2px);display:none;align-items:flex-start;justify-content:center;padding:10vh 16px 16px;z-index:20}.ov.on{display:flex}
+.mdl{width:100%;max-width:560px;background:#fff;border-radius:16px;box-shadow:0 30px 70px -20px rgba(17,24,39,.5);overflow:hidden;animation:pop .18s ease-out}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.98)}}
+.mh{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--line)}.mh h2{font-size:16px}
+.mh button{border:0;background:none;font-size:18px;color:var(--mute);width:30px;height:30px;border-radius:8px}.mh button:hover{background:var(--bg)}
+.fr{display:flex;align-items:center;gap:10px;padding:10px 20px;border-bottom:1px solid #f3f4f6;position:relative;font-size:14px}
+.fr label{width:56px;color:var(--soft);font-size:13px;flex:none}.fr input{flex:1;border:0;outline:0;font-size:14px;min-width:0;background:none}
+.pk{display:inline-flex;align-items:center;gap:8px;background:#eef2ff;border-radius:20px;padding:3px 4px 3px 3px;font-weight:600;font-size:13px}.pk button{border:0;background:none;color:var(--mute);width:20px;height:20px;border-radius:50%}
+.sg{position:absolute;left:86px;right:20px;top:100%;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 40px -14px rgba(26,31,46,.35);padding:6px;z-index:3;display:none}.sg.on{display:block}
+.sg button{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:8px;border-radius:8px;text-align:left;font-size:13.5px}.sg button:hover,.sg button.hi{background:var(--bg)}.sg small{color:var(--mute);margin-left:auto;font-size:12px}
+.qt{display:flex;gap:6px;flex-wrap:wrap;padding:12px 20px 0}.qt button{border:1px solid var(--line);background:#fff;border-radius:20px;padding:4px 11px;font-size:12.5px;font-weight:600;color:var(--mute)}.qt button:hover{border-color:#93b4f5;color:var(--blue)}
+.mdl textarea{width:100%;border:0;outline:0;resize:none;padding:12px 20px;font-size:14.5px;min-height:140px}
+.mf{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-top:1px solid var(--line);background:#fafbfc}.mf .hint{font-size:12px;color:var(--soft)}
+@media(max-width:1180px){.ws{grid-template-columns:320px minmax(0,1fr)}.cx{display:none}}
+@media(max-width:860px){.sb{display:none}.ws{grid-template-columns:1fr}.th{display:none}.ws.open .lp{display:none}.ws:not(.sel){grid-template-columns:1fr}.ws.open .th{display:flex}.back{display:block}.top .s{display:none}.b{max-width:85%}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+ <aside class="sb">
+  <div class="logo"><i>🌐</i>Pathly</div>
+  <nav aria-label="Main">
+   <a href="pathly_dso_dashboard.html"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v5H2V2zm0 7h5v5H2V9zm7-7h5v5H9V2zm0 7h5v5H9V9z"/></svg>Dashboard</a>
+   <a href="pathly_student_center.html"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="2.5"/><path d="M3 13c0-3 10-3 10 0"/></svg>Students</a>
+   <a href="#"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2L2 5v4c0 3 2.5 5.5 6 6 3.5-.5 6-3 6-6V5L8 2z"/></svg>DSO Requests</a>
+   <a href="#"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="2.5"/><path d="M3 13c0-3 10-3 10 0"/></svg>Student Requests</a>
+   <a href="pathly_dso_messaging.html" class="on" aria-current="page"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v8a1 1 0 01-1 1H3a1 1 0 01-1-1V3zm0 0l6 5 6-5"/></svg>Messaging<span class="badge" id="navb"></span></a>
+   <div class="lab">Utility</div>
+   <a href="#"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 13V7l5-5 5 5v6H9V9H7v4H3z"/></svg>Data Imports</a>
+   <a href="#"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2"/><path d="M8 2v2M8 12v2M2 8h2M12 8h2"/></svg>Admin Settings</a>
+  </nav>
+ </aside>
+ <div class="main">
+  <header class="top"><div class="s">Search student records, tasks, documents…</div><div class="chip"><span class="av" style="width:28px;height:28px;font-size:11px;background:linear-gradient(135deg,#6366f1,#8b5cf6)">QA</span>QA DSO Test</div></header>
+  <div class="ws" id="ws">
+   <section class="pane lp" aria-label="Conversations">
+    <div class="ph">
+     <div class="row"><h1>Messaging</h1><button class="nb" id="newm" aria-haspopup="dialog" aria-label="New message"><i aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M6 1v10M1 6h10"/></svg></i>New<kbd>C</kbd></button></div>
+     <label class="find"><span aria-hidden="true">🔍</span><input id="q" type="search" placeholder="Search students or subjects" aria-label="Search conversations" /></label>
+    </div>
+    <div class="tabs" id="tabs" role="group" aria-label="Filter"></div>
+    <ul class="list" id="list"></ul>
+   </section>
+   <section class="pane th" aria-label="Conversation" id="thread"></section>
+   <aside class="pane cx" aria-label="Student details" id="ctx"></aside>
+  </div>
+ </div>
+</div>
+<div class="ov" id="ov"><div class="mdl" role="dialog" aria-modal="true" aria-labelledby="mt">
+ <div class="mh"><h2 id="mt">New message</h2><button id="mx" aria-label="Close">✕</button></div>
+ <div class="fr"><label for="nto">To</label><span id="npk"></span><input id="nto" placeholder="Search students…" autocomplete="off" /><div class="sg" id="nsg" role="listbox"></div></div>
+ <div class="fr"><label for="nsj">Subject</label><input id="nsj" placeholder="What is this about?" /></div>
+ <div class="qt" id="nqt"></div>
+ <textarea id="nbd" placeholder="Write your message…" aria-label="Message body"></textarea>
+ <div class="mf"><span class="hint">⌘↵ to send · Esc to close</span><div style="display:flex;gap:8px"><button class="btn" id="nc">Cancel</button><button class="btn p" id="ns">Send message</button></div></div>
+</div></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const C=[
+ {id:1,n:'QA Student Test',i:'QS',c:'#2563eb',e:'qa.student@university.edu',sj:'Program End Date Extension Request',time:'Apr 17',un:true,prog:'BS Biology · Undergraduate',visa:['F-1 · expired Mar 9, 2026','red'],sevis:'Terminated',comp:'Out of compliance',req:['Program Extension','In review','amber'],
+  m:[['s','Apr 16','Hi, my I-20 ends in May but I need one more semester to finish my capstone. How do I request an extension?','2:14 PM'],['d','','Hi! You can submit a Program Extension request. Please attach a letter from your advisor confirming the new end date.','3:02 PM'],['s','Apr 17','Done, I submitted it this morning with the advisor letter. Could you let me know if anything else is missing?','9:41 AM']]},
+ {id:2,n:'Priya Patel',i:'PP',c:'#8b5cf6',e:'ppatel@university.edu',sj:'CPT extension to graduate studies',time:'Apr 17',un:true,prog:'BS Computer Science',visa:['F-1 · valid to Dec 1, 2028','green'],sevis:'Active',comp:'In compliance',req:['CPT extension','Needs review','amber'],
+  m:[['s','Apr 17','I’m moving into the graduate program this fall. Does my CPT carry over, or do I need a new request?','8:20 AM']]},
+ {id:3,n:'Michael Chen',i:'MC',c:'#0f766e',e:'mchen@university.edu',sj:'Visa expiring soon',time:'Apr 15',un:false,prog:'MS Data Science',visa:['F-1 · expires in 28 days','amber'],sevis:'Active',comp:'In compliance',req:['Travel signature','Approved','green'],
+  m:[['d','Apr 14','Hi Michael, your visa expires soon. Please plan a renewal appointment before any international travel.','10:05 AM'],['s','Apr 15','Thanks for the heads up. I’ll book the appointment this week.','11:30 AM']]},
+ {id:4,n:'Sarah Lee',i:'SL',c:'#d97706',e:'slee@university.edu',sj:'OPT application documents',time:'Apr 12',un:false,prog:'BA Economics',visa:['F-1 · valid to Mar 15, 2027','green'],sevis:'Active',comp:'In compliance',req:['OPT application','Submitted','blue'],
+  m:[['s','Apr 12','I uploaded my passport copy and I-94 for OPT. Anything else you need from me?','4:48 PM'],['d','','Everything looks complete. I’ll review it and update you within two business days.','5:10 PM']]}
+];
+const T=[['Request more documents','Ask for missing items','Hi {n}, to continue with your request we need a few more documents. Please upload them in the portal and let me know when they’re ready.'],['Appointment reminder','Offer a meeting time','Hi {n}, I’d like to meet to go over your request. Are you available this week? Share a couple of times that work for you.'],['Request received','Short confirmation','Hi {n}, thanks for your request. I’ve received it and will follow up within two business days.'],['Visa expiring soon','Compliance reminder','Hi {n}, your visa is expiring soon. Please schedule a renewal appointment before any international travel.']];
+const X=[{id:5,n:'Daniel Kim',i:'DK',c:'#be123c',e:'dkim@university.edu',prog:'MS Computer Science',visa:['F-1 · valid to Aug 2027','green'],sevis:'Active',comp:'In compliance',req:['None','No open request','blue']},{id:6,n:'Aisha Rahman',i:'AR',c:'#0369a1',e:'arahman@university.edu',prog:'BS Mechanical Engineering',visa:['F-1 · valid to May 2028','green'],sevis:'Active',comp:'In compliance',req:['None','No open request','blue']}];
+let cur=null,nto=null,filt='all',qs='';
+filt='all',qs='';
+const last=c=>c.m[c.m.length-1];
+const needs=c=>last(c)[0]==='s';
+function renderList(){
+ const f=C.filter(c=>(filt==='all'||(filt==='un'&&c.un)||(filt==='reply'&&needs(c)))&&(c.n+c.sj).toLowerCase().includes(qs));
+ const cnt={all:C.length,un:C.filter(c=>c.un).length,reply:C.filter(needs).length};
+ $('tabs').innerHTML=[['all','All'],['un','Unread'],['reply','Needs reply']].map(([k,l])=>`<button class="tab" aria-pressed="${filt===k}" data-f="${k}">${l}<b>${cnt[k]}</b></button>`).join('');
+ $('navb').textContent=cnt.un||'';$('navb').style.display=cnt.un?'':'none';
+ $('list').innerHTML=f.length?f.map(c=>{const l=last(c);return`<li><button class="cv ${c.un?'un':''}" data-id="${c.id}" aria-current="${c.id===cur}"><span class="av" style="width:42px;height:42px;font-size:14px;background:${c.c}">${c.i}</span><span class="m"><span class="n"><span>${c.n}</span><time>${c.time}</time></span><span class="sj" style="display:block">${c.sj}</span><span class="pv" style="display:block">${l[0]==='d'?'You: ':''}${esc(l[2])}</span>${needs(c)?'<span class="tg t-amber">Needs reply</span>':''}</span>${c.un?'<span class="dot" aria-label="Unread"></span>':''}</button></li>`}).join(''):'<div class="empty">No conversations match.</div>';
+}
+function renderThread(){
+ if(cur==null){const u=C.filter(c=>c.un).length,n=C.filter(needs).length;
+  $('thread').innerHTML=`<div class="es"><div><div class="ic"><svg width="28" height="28" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 3h12v8a1 1 0 01-1 1H3a1 1 0 01-1-1V3zm0 0l6 5 6-5"/></svg></div><h2>Select a conversation</h2><p>Pick a student from the list to read the thread, see their visa and request status, and reply.</p>
+  <div class="st"><button data-jump="un"><b>${u}</b><span>Unread</span></button><button data-jump="reply"><b>${n}</b><span>Need reply</span></button><button data-jump="all"><b>${C.length}</b><span>Conversations</span></button></div>
+  <div class="acts"><button class="btn p" data-jump="reply">Open next needing reply</button><button class="btn" id="newm2">New message</button></div></div></div>`;return}
+ const c=C.find(x=>x.id===cur);let h='',day='';
+ c.m.forEach(([w,d,x,t])=>{if(d&&d!==day){day=d;h+=`<div class="day">${d}, 2026</div>`}h+=`<div class="b ${w}">${esc(x)}</div><div class="tm ${w}">${t}</div>`});
+ $('thread').innerHTML=`<div class="thh"><button class="back" id="bk" aria-label="Back to conversations">←</button><span class="av" style="width:40px;height:40px;font-size:14px;background:${c.c}">${c.i}</span><div><h2>${c.n}</h2><small>${c.sj}</small></div><div class="acts"><button class="btn" id="res">Mark resolved</button></div></div>
+ <div class="link" ${c.req[0]==='None'?'hidden':''}><span aria-hidden="true">📎</span><span>Linked request: <b>${c.req[0]}</b></span><span class="s tg t-${c.req[2]}" style="margin:0">${c.req[1]}</span></div>
+ <div class="msgs" id="msgs" aria-live="polite">${h}</div>
+ <div class="comp"><div class="menu" id="menu">${T.map((t,i)=>`<button data-t="${i}">${t[0]}<small>${t[1]}</small></button>`).join('')}</div>
+  <textarea id="tx" rows="2" placeholder="Reply to ${c.n.split(' ')[0]}…" aria-label="Message"></textarea>
+  <div class="cbar"><button class="ib" id="tpl" aria-haspopup="true">📄 Templates</button><button class="ib">📎 Attach</button><span class="hint">⌘↵ to send</span><button class="btn p" id="send">Send</button></div></div>`;
+ const m=$('msgs');m.scrollTop=m.scrollHeight;
+}
+function renderCtx(){
+ if(cur==null){$('ctx').innerHTML='';return}
+ const c=C.find(x=>x.id===cur);
+ $('ctx').innerHTML=`<div class="who"><div class="av" style="background:${c.c}">${c.i}</div><h3>${c.n}</h3><div class="em">${c.e}</div></div>
+ <h4>Status</h4><div class="kv"><span>Visa</span><span style="color:var(--${c.visa[1]})">${c.visa[0]}</span></div><div class="kv"><span>SEVIS</span><span>${c.sevis}</span></div><div class="kv"><span>Compliance</span><span>${c.comp}</span></div><div class="kv"><span>Program</span><span>${c.prog}</span></div>
+ <h4>Open request</h4><div class="rq"><b>${c.req[0]}</b><span class="tg t-${c.req[2]}" style="margin:0">${c.req[1]}</span></div>
+ <button class="btn">View full profile</button><button class="btn p">Review request</button>`;
+}
+function show(id){cur=id;$('ws').classList.add('sel');const c=C.find(x=>x.id===id);c.un=false;renderList();renderThread();renderCtx();$('ws').classList.add('open')}
+function pickList(q){q=q.toLowerCase();return[...C,...X].filter(s=>s.n.toLowerCase().includes(q)||s.e.includes(q)).slice(0,5)}
+function renderPick(){const q=$('nto').value;const on=!nto&&document.activeElement===$('nto');
+ $('nsg').innerHTML=pickList(q).map(s=>`<button role="option" data-p="${s.id}"><span class="av" style="width:28px;height:28px;font-size:11px;background:${s.c}">${s.i}</span>${s.n}<small>${s.prog}</small></button>`).join('')||'<div class="empty" style="padding:14px">No students found</div>';
+ $('nsg').classList.toggle('on',on);
+ $('npk').innerHTML=nto?`<span class="pk"><span class="av" style="width:22px;height:22px;font-size:9px;background:${nto.c}">${nto.i}</span>${nto.n}<button id="npx" aria-label="Remove recipient">✕</button></span>`:'';
+ $('nto').style.display=nto?'none':'';$('nto').setAttribute('aria-expanded',on)}
+function openNew(pre){nto=pre||null;$('nsj').value='';$('nbd').value='';$('nto').value='';
+ $('nqt').innerHTML=T.map((t,i)=>`<button data-q="${i}">${t[0]}</button>`).join('');
+ $('ov').classList.add('on');renderPick();(nto?$('nsj'):$('nto')).focus()}
+function closeNew(){$('ov').classList.remove('on')}
+function sendNew(){if(!nto){$('nto').focus();return toast('Choose a student first')}const b=$('nbd').value.trim();if(!b){$('nbd').focus();return}
+ let c=C.find(x=>x.id===nto.id);const t=new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+ if(!c){c={...nto,sj:'',time:'Now',un:false,m:[]};C.unshift(c)}
+ c.sj=$('nsj').value.trim()||c.sj||'New message';c.m.push(['d','Today',b,t]);c.time='Now';
+ closeNew();filt='all';qs='';$('q').value='';show(c.id);toast('Message sent to '+c.n.split(' ')[0])}
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),1800)}
+function send(){const tx=$('tx'),v=tx.value.trim();if(!v){tx.focus();return}const c=C.find(x=>x.id===cur);
+ c.m.push(['d','',v,new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})]);c.time='Now';renderList();renderThread();$('tx').focus();toast('Message sent to '+c.n.split(' ')[0])}
+document.addEventListener('click',e=>{const t=e.target;
+ const jp=t.closest('[data-jump]');if(jp){const k=jp.dataset.jump;filt=k==='all'?'all':k;renderList();const c=k==='all'?null:C.find(k==='un'?x=>x.un:needs);return c?show(c.id):void 0}
+ if(t.closest('#newm')||t.closest('#newm2'))return openNew();
+ if(t.closest('#mx')||t.closest('#nc')||t.id==='ov')return closeNew();
+ const pk=t.closest('[data-p]');if(pk){nto=[...C,...X].find(x=>x.id===+pk.dataset.p);renderPick();return $('nsj').focus()}
+ if(t.closest('#npx')){nto=null;renderPick();return $('nto').focus()}
+ const qq=t.closest('[data-q]');if(qq){$('nbd').value=T[qq.dataset.q][2].replace('{n}',nto?nto.n.split(' ')[0]:'there');if(!$('nsj').value)$('nsj').value=T[qq.dataset.q][0];return $('nbd').focus()}
+ if(t.closest('#ns'))return sendNew();
+ const cv=t.closest('.cv');if(cv)return show(+cv.dataset.id);
+ const tb=t.closest('.tab');if(tb){filt=tb.dataset.f;return renderList()}
+ if(t.closest('#tpl')){return $('menu').classList.toggle('open')}
+ const tp=t.closest('[data-t]');if(tp){const c=C.find(x=>x.id===cur);$('tx').value=T[tp.dataset.t][2].replace('{n}',c.n.split(' ')[0]);$('menu').classList.remove('open');return $('tx').focus()}
+ if(!t.closest('.menu')&&$('menu'))$('menu').classList.remove('open');
+ if(t.closest('#send'))return send();
+ if(t.closest('#bk'))return $('ws').classList.remove('open');
+ if(t.closest('#res'))return toast('Marked resolved (demo)');
+});
+document.addEventListener('keydown',e=>{
+ const typing=/INPUT|TEXTAREA/.test(e.target.tagName);
+ if(e.key==='c'&&!typing&&!e.metaKey&&!e.ctrlKey&&!$('ov').classList.contains('on')){e.preventDefault();return openNew()}
+ if(e.key==='Escape'&&$('ov').classList.contains('on'))return closeNew();
+ if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)&&$('ov').classList.contains('on')){e.preventDefault();return sendNew()}
+ if(e.key==='Enter'&&e.target.id==='nto'){const f=pickList($('nto').value)[0];if(f){e.preventDefault();nto=f;renderPick();$('nsj').focus()}}
+ if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)&&e.target.id==='tx'){e.preventDefault();send()}if(e.key==='Escape'&&$('menu'))$('menu').classList.remove('open')});
+$('nto').addEventListener('input',renderPick);$('nto').addEventListener('focus',renderPick);
+$('q').addEventListener('input',e=>{qs=e.target.value.toLowerCase();renderList()});
+renderList();renderThread();renderCtx();
+</script>
+</body>
+</html>

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sign in – Pathly</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--navy:#1a1f2e;--ink:#111827;--mute:#6b7280;--line:#e5e7eb;--bg:#f4f5f7;--blue:#2563eb;--red:#dc2626;--green:#16a34a;font-family:'DM Sans',system-ui,sans-serif}
+body{color:var(--ink);-webkit-font-smoothing:antialiased;line-height:1.5}
+a{color:var(--blue);text-decoration:none;font-weight:500}a:hover{text-decoration:underline}
+button,input{font-family:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.page{display:grid;grid-template-columns:minmax(380px,.95fr) 1.05fr;min-height:100vh}
+
+/* left brand panel */
+.side{background:var(--navy);color:#fff;padding:40px 56px;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.side::before{content:'';position:absolute;width:560px;height:560px;right:-200px;top:-220px;border-radius:50%;background:rgba(99,102,241,.2)}
+.side::after{content:'';position:absolute;width:380px;height:380px;left:-140px;bottom:-160px;border-radius:50%;background:rgba(59,130,246,.14)}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:19px;letter-spacing:-.3px;color:#fff;position:relative;z-index:1}
+.logo i{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#3b82f6,#6366f1);display:grid;place-items:center;font-style:normal;font-size:16px}
+.logo:hover{text-decoration:none}
+.pitch{margin:auto 0;position:relative;z-index:1;max-width:420px;padding:48px 0}
+.mono{width:60px;height:60px;border-radius:16px;background:linear-gradient(135deg,#3b82f6,#6366f1);display:none;place-items:center;font-size:22px;font-weight:700;margin-bottom:22px}
+.pitch.picked .mono{display:grid;animation:pop .35s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes pop{from{transform:scale(.7);opacity:0}}
+.pitch h1{font-size:clamp(30px,3.2vw,42px);line-height:1.1;letter-spacing:-1.3px;font-weight:700}
+.pitch p{margin-top:16px;color:#9ca3af;font-size:17px}
+.facts{position:relative;z-index:1;display:flex;gap:28px;flex-wrap:wrap;font-size:13.5px;color:#9ca3af}
+.facts b{color:#fff;font-weight:600}
+
+/* right form */
+.main{display:flex;flex-direction:column;padding:32px 40px}
+.top{display:flex;justify-content:space-between;align-items:center;font-size:14px;color:var(--mute)}
+.top .back{display:flex;gap:6px;align-items:center;color:var(--mute);font-weight:500}
+.card{width:100%;max-width:420px;margin:auto}
+.beta{display:inline-block;font-size:12px;font-weight:600;color:#4338ca;background:#e0e7ff;padding:3px 10px;border-radius:20px;margin-bottom:16px}
+.card h2{font-size:28px;letter-spacing:-.8px;line-height:1.15}
+.card .lead{color:var(--mute);margin:8px 0 28px}
+.field{margin-bottom:18px;position:relative}
+label,.lbl{display:block;font-size:13.5px;font-weight:600;margin-bottom:7px}
+.input{width:100%;height:46px;padding:0 14px;border:1px solid #d1d5db;border-radius:9px;font-size:15px;background:#fff;color:var(--ink);transition:border-color .15s,box-shadow .15s}
+.input:hover{border-color:#9ca3af}
+.input:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+.input[aria-invalid=true]{border-color:var(--red)}
+.err{color:var(--red);font-size:13px;margin-top:6px;min-height:0}
+.err:empty{display:none}
+
+/* combobox */
+.combo-btn{display:flex;align-items:center;gap:12px;text-align:left;cursor:pointer;padding-right:12px}
+.combo-btn .ph{color:#9ca3af}
+.combo-btn svg{margin-left:auto;width:16px;height:16px;color:var(--mute);transition:transform .15s}
+.combo-btn[aria-expanded=true] svg{transform:rotate(180deg)}
+.m{width:26px;height:26px;border-radius:7px;background:#dbeafe;color:#1d4ed8;display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+.list{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 6px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 44px -14px rgba(26,31,46,.3);padding:6px;list-style:none;display:none}
+.list.open{display:block}
+.opt{display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;cursor:pointer;font-size:15px}
+.opt[aria-selected=true]{background:#eff6ff}.opt.hl{background:var(--bg)}
+.opt small{margin-left:auto;color:var(--mute);font-size:12.5px}
+.opt.soon{cursor:default;color:#9ca3af}.opt.soon .m{background:var(--bg);color:#9ca3af}
+.list hr{border:0;border-top:1px solid var(--line);margin:6px 4px}
+.req{padding:8px 10px 6px;font-size:13px;color:var(--mute)}
+
+/* role switch */
+.seg{display:grid;grid-template-columns:1fr 1fr;padding:4px;background:var(--bg);border-radius:10px;border:1px solid var(--line)}
+.seg button{height:40px;border:0;background:none;border-radius:7px;font-size:14.5px;font-weight:600;color:var(--mute);cursor:pointer}
+.seg button[aria-checked=true]{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.pw{position:relative}.pw .input{padding-right:62px}
+.show{position:absolute;right:6px;top:6px;height:34px;padding:0 10px;border:0;background:none;color:var(--mute);font-size:13px;font-weight:600;cursor:pointer;border-radius:6px}
+.show:hover{color:var(--ink)}
+.row{display:flex;justify-content:space-between;font-size:14px;margin:-4px 0 22px}
+.btn{width:100%;height:48px;border-radius:9px;border:1px solid transparent;font-size:15.5px;font-weight:600;cursor:pointer;transition:background .15s}
+.btn-p{background:var(--blue);color:#fff}.btn-p:hover{background:#1d4ed8}
+.btn-p:disabled{background:#93b4f5;cursor:wait}
+.btn-s{background:#fff;border-color:var(--line);color:#9ca3af;margin-top:12px;cursor:not-allowed}
+.or{display:flex;align-items:center;gap:12px;color:#9ca3af;font-size:13px;margin:18px 0 0}
+.or::before,.or::after{content:'';flex:1;border-top:1px solid var(--line)}
+.note{margin-top:26px;font-size:13px;color:var(--mute);text-align:center}
+.foot{font-size:13px;color:#9ca3af;display:flex;gap:20px;justify-content:center;margin-top:24px}
+.foot a{color:#9ca3af;font-weight:400}
+
+@media(max-width:860px){.page{grid-template-columns:1fr}.side{padding:24px;min-height:0}.pitch{display:none}.facts{display:none}.main{padding:28px 22px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="page">
+
+ <aside class="side">
+  <a class="logo" href="pathly_homepage.html"><i>🌐</i>Pathly</a>
+  <div class="pitch" id="pitch">
+   <div class="mono" id="mono" aria-hidden="true"></div>
+   <h1 id="pt">Your international office, in one place.</h1>
+   <p id="pp">Choose your school to get started.</p>
+  </div>
+  <div class="facts"><span><b>FERPA-compliant</b> records</span><span><b>Encrypted</b> in transit and at rest</span></div>
+ </aside>
+
+ <main class="main">
+  <div class="top"><a class="back" href="pathly_homepage.html">← Back to home</a><span></span></div>
+
+  <form class="card" id="f" novalidate>
+   <span class="beta">Private beta</span>
+   <h2>Sign in to Pathly</h2>
+   <p class="lead">Start by choosing your school. We’ll take you to the right portal.</p>
+
+   <div class="field">
+    <span class="lbl" id="sl">School</span>
+    <button type="button" class="input combo-btn" id="cb" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="ls" aria-labelledby="sl cb">
+     <span class="ph" id="cv">Select your school</span>
+     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg>
+    </button>
+    <ul class="list" id="ls" role="listbox" aria-labelledby="sl"></ul>
+    <div class="err" id="e-s" role="alert"></div>
+   </div>
+
+   <div class="field">
+    <span class="lbl" id="rl">I’m signing in as</span>
+    <div class="seg" role="radiogroup" aria-labelledby="rl">
+     <button type="button" role="radio" aria-checked="true" data-r="student">Student</button>
+     <button type="button" role="radio" aria-checked="false" data-r="dso">DSO or staff</button>
+    </div>
+   </div>
+
+   <div class="field">
+    <label for="em">University email</label>
+    <input class="input" id="em" type="email" autocomplete="username" placeholder="you@university.edu" />
+    <div class="err" id="e-e" role="alert"></div>
+   </div>
+
+   <div class="field">
+    <label for="pw">Password</label>
+    <div class="pw"><input class="input" id="pw" type="password" autocomplete="current-password" placeholder="Enter your password" /><button type="button" class="show" id="sh" aria-pressed="false">Show</button></div>
+    <div class="err" id="e-p" role="alert"></div>
+   </div>
+
+   <div class="row"><span></span><a href="#">Forgot password?</a></div>
+
+   <button class="btn btn-p" id="go" type="submit">Sign in as student</button>
+   <div class="or">or</div>
+   <button class="btn btn-s" type="button" disabled>Single sign-on (coming soon)</button>
+
+   <p class="note">Don’t have access yet? <a href="mailto:hello@pathly.app">Ask your international office</a></p>
+  </form>
+
+  <div class="foot"><a href="#">Privacy</a><a href="#">Terms</a><a href="#">Help</a></div>
+ </main>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const SCHOOLS=[{id:'berea',name:'Berea College',abbr:'BC'},{id:'georgetown',name:'Georgetown University',abbr:'GU'}];
+const COPY={student:'Check your visa status, submit requests, and message your DSO.',dso:'Review requests, monitor compliance, and keep students in status.'};
+const DEST={student:'pathly_student_dashboard.html',dso:'pathly_dso_dashboard.html'};
+let school=null,role='student',hl=0;
+
+/* listbox */
+const ls=$('ls'),cb=$('cb');
+ls.innerHTML=SCHOOLS.map((s,i)=>`<li class="opt" role="option" id="o${i}" data-i="${i}"><span class="m">${s.abbr}</span>${s.name}</li>`).join('')+
+ `<hr><li class="opt soon" role="option" aria-disabled="true"><span class="m">+</span>More schools<small>Coming soon</small></li><li class="req">Don’t see yours? <a href="mailto:hello@pathly.app?subject=Add%20my%20school">Request your school</a></li>`;
+const opts=[...ls.querySelectorAll('.opt:not(.soon)')];
+function open(v){ls.classList.toggle('open',v);cb.setAttribute('aria-expanded',v);if(v){hl=Math.max(0,SCHOOLS.indexOf(school));mark()}}
+function mark(){opts.forEach((o,i)=>{o.classList.toggle('hl',i===hl);o.setAttribute('aria-selected',SCHOOLS[i]===school)});cb.setAttribute('aria-activedescendant',opts[hl].id)}
+function pick(i){school=SCHOOLS[i];$('cv').className='';$('cv').innerHTML=`<span style="display:flex;align-items:center;gap:12px"><span class="m">${school.abbr}</span>${school.name}</span>`;$('e-s').textContent='';cb.removeAttribute('aria-invalid');open(false);paint();try{localStorage.setItem('pathly_school',school.id)}catch(e){}}
+cb.onclick=()=>open(!ls.classList.contains('open'));
+opts.forEach((o,i)=>o.onclick=()=>pick(i));
+cb.onkeydown=e=>{const o=ls.classList.contains('open');
+ if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();if(!o)return open(true);hl=(hl+(e.key==='ArrowDown'?1:-1)+opts.length)%opts.length;mark()}
+ else if((e.key==='Enter'||e.key===' ')&&o){e.preventDefault();pick(hl)}
+ else if(e.key==='Escape'&&o){e.preventDefault();open(false)}};
+document.addEventListener('click',e=>{if(!e.target.closest('.field')||!e.target.closest('#ls,#cb'))if(!ls.contains(e.target)&&!cb.contains(e.target))open(false)});
+
+/* left panel reacts to choices */
+function paint(){const p=$('pitch');
+ if(school){p.classList.add('picked');$('mono').textContent=school.abbr;$('pt').textContent=school.name;$('pp').textContent=COPY[role]}
+ else{p.classList.remove('picked');$('pt').textContent='Your international office, in one place.';$('pp').textContent='Choose your school to get started.'}}
+
+/* role */
+document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{role=b.dataset.r;
+ document.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-checked',x===b));
+ $('go').textContent=role==='dso'?'Sign in as DSO':'Sign in as student';
+ $('em').placeholder=role==='dso'?'dso@university.edu':'you@university.edu';paint()});
+
+/* password toggle */
+$('sh').onclick=()=>{const t=$('pw').type==='password';$('pw').type=t?'text':'password';$('sh').textContent=t?'Hide':'Show';$('sh').setAttribute('aria-pressed',t)};
+
+/* submit */
+function bad(el,msgId,msg){$(msgId).textContent=msg;el.setAttribute('aria-invalid','true')}
+['em','pw'].forEach(id=>$(id).addEventListener('input',()=>{$(id).removeAttribute('aria-invalid');$(id==='em'?'e-e':'e-p').textContent=''}));
+$('f').onsubmit=e=>{e.preventDefault();let first=null;
+ if(!school){bad(cb,'e-s','Choose your school to continue.');first=cb}
+ if(!/^\S+@\S+\.\S+$/.test($('em').value.trim())){bad($('em'),'e-e','Enter your university email address.');first=first||$('em')}
+ if($('pw').value.length<6){bad($('pw'),'e-p','Enter your password (at least 6 characters).');first=first||$('pw')}
+ if(first)return first.focus();
+ /* TODO: replace with real auth call. Beta preview: any valid-looking credentials continue. */
+ $('go').disabled=true;$('go').textContent='Signing in…';
+ setTimeout(()=>{location.href=DEST[role]},700)};
+
+/* remember last school */
+try{const s=SCHOOLS.findIndex(x=>x.id===localStorage.getItem('pathly_school'));if(s>-1)pick(s)}catch(e){}
+</script>
+</body>
+</html>

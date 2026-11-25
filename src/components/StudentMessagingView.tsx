@@ -1,47 +1,72 @@
-/**
- * StudentMessagingView
- * Full-page messaging view for students.
- *
- * - Left panel: inbox list (messages from DSO)
- * - Right panel: selected thread detail + reply form, or "New Message" compose form
- *
- * Uses the Pathly inline-style design system (#f4f5f7 bg, DM Sans, white cards).
- */
-
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useStudentMessages } from '../hooks/useMessages';
-import { sendMessage, getMessageThread, AttachmentData } from '../services/messaging.service';
+import { sendMessage, getMessageThread } from '../services/messaging.service';
 import type { MessageRecord } from '../services/messaging.service';
-import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
+import './messaging.css';
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const TOPICS = [
+  { icon: '📄', label: 'Request update',    desc: 'Ask where a request stands' },
+  { icon: '💼', label: 'Work authorization', desc: 'CPT, OPT or STEM questions' },
+  { icon: '✈️', label: 'Travel & visa',      desc: 'Signatures, renewals, re-entry' },
+  { icon: '❓', label: 'Something else',     desc: 'Any other question for your DSO' },
+] as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatRelativeDate(iso: string) {
+function formatTime(iso: string): string {
   const d = new Date(iso);
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffDays = Math.floor(diffMs / 86400000);
-  if (diffDays === 0) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const diffDays = Math.floor((Date.now() - d.getTime()) / 86_400_000);
+  if (diffDays === 0) return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return d.toLocaleDateString([], { weekday: 'short' });
+  if (diffDays < 7)  return d.toLocaleDateString([], { weekday: 'short' });
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-function senderLabel(msg: MessageRecord): string {
-  if (msg.sender?.full_name) return msg.sender.full_name;
-  if (msg.sender_role === 'dso' || msg.sender_role === 'admin') return 'DSO Office';
-  return 'Unknown';
+interface ThreadItem {
+  thread_id: string;
+  subject: string;
+  latestMsg: MessageRecord;
+  isUnread: boolean;
+  awaitingDSO: boolean;
+  dsoName: string;
+  dsoInitials: string;
 }
 
-function senderInitials(msg: MessageRecord): string {
-  const name = senderLabel(msg);
-  return name
-    .split(' ')
-    .map(p => p[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
+function buildThreadList(inbox: MessageRecord[], sent: MessageRecord[]): ThreadItem[] {
+  const all = [...inbox, ...sent].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+  const seen = new Set<string>();
+  const threads: ThreadItem[] = [];
+
+  for (const m of all) {
+    if (seen.has(m.thread_id)) continue;
+    seen.add(m.thread_id);
+
+    const inThread = all.filter(x => x.thread_id === m.thread_id);
+    const latestMsg = inThread[0];
+    const isUnread = inbox.some(x => x.thread_id === m.thread_id && x.status !== 'read');
+    const awaitingDSO = latestMsg.sender_role === 'student';
+
+    const dsoMsg = inbox.find(x => x.thread_id === m.thread_id);
+    const dsoName = dsoMsg?.sender?.full_name ?? 'DSO Office';
+    const dsoInitials = dsoName.split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2) || 'QD';
+    const rawSubject = inThread[inThread.length - 1]?.subject ?? m.subject;
+
+    threads.push({
+      thread_id: m.thread_id,
+      subject: rawSubject.replace(/^Re:\s*/i, ''),
+      latestMsg,
+      isUnread,
+      awaitingDSO,
+      dsoName,
+      dsoInitials,
+    });
+  }
+  return threads;
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -52,451 +77,371 @@ interface StudentMessagingViewProps {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function StudentMessagingView({ onBack }: StudentMessagingViewProps) {
-  const { inbox, sent, loading, error, refresh, markRead, unreadCount } = useStudentMessages();
+export function StudentMessagingView({ onBack: _onBack }: StudentMessagingViewProps) {
+  const { inbox, sent, loading, error, refresh, markRead } = useStudentMessages();
 
-  const [selectedMsg, setSelectedMsg] = useState<MessageRecord | null>(null);
-  const [thread, setThread] = useState<MessageRecord[]>([]);
+  const [filter, setFilter] = useState<'all' | 'unread' | 'awaiting'>('all');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [threadMsgs, setThreadMsgs] = useState<MessageRecord[]>([]);
   const [threadLoading, setThreadLoading] = useState(false);
-  const [activePanel, setActivePanel] = useState<'inbox' | 'sent' | 'compose'>('inbox');
   const [replyBody, setReplyBody] = useState('');
   const [replying, setReplying] = useState(false);
-  const [replyAttachments, setReplyAttachments] = useState<AttachmentData[]>([]);
-  const [uploadingReply, setUploadingReply] = useState(false);
-  const replyFileRef = useRef<HTMLInputElement>(null);
 
-  // Compose new message
+  // Compose modal
+  const [showCompose, setShowCompose] = useState(false);
+  const [composeTopic, setComposeTopic] = useState(0);
   const [composeSubject, setComposeSubject] = useState('');
   const [composeBody, setComposeBody] = useState('');
-  const [sending, setSending] = useState(false);
-  const [composeAttachments, setComposeAttachments] = useState<AttachmentData[]>([]);
-  const [uploadingCompose, setUploadingCompose] = useState(false);
-  const composeFileRef = useRef<HTMLInputElement>(null);
+  const [composeSending, setComposeSending] = useState(false);
 
-  // ── Handlers ──────────────────────────────────────────────────────────────
+  const msgsRef = useRef<HTMLDivElement>(null);
 
-  const handleSelectMessage = async (msg: MessageRecord) => {
-    setSelectedMsg(msg);
+  const threads = buildThreadList(inbox, sent);
+  const filtered = threads.filter(t =>
+    filter === 'all'      ? true :
+    filter === 'unread'   ? t.isUnread :
+    /* awaiting */          t.awaitingDSO,
+  );
+  const counts = {
+    all:      threads.length,
+    unread:   threads.filter(t => t.isUnread).length,
+    awaiting: threads.filter(t => t.awaitingDSO).length,
+  };
+  const selectedThread = threads.find(t => t.thread_id === selectedId) ?? null;
+  // Nav badge is polled by the student portal's own useStudentMessages() instance
+
+  // Scroll to bottom when thread loads
+  useEffect(() => {
+    if (msgsRef.current) msgsRef.current.scrollTop = msgsRef.current.scrollHeight;
+  }, [threadMsgs]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showCompose) { setShowCompose(false); return; }
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && showCompose) {
+        e.preventDefault();
+        handleSendNew();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCompose, composeBody, composeSubject]);
+
+  const handleSelectThread = useCallback(async (threadId: string) => {
+    setSelectedId(threadId);
     setReplyBody('');
-    setReplyAttachments([]);
-    if (msg.status !== 'read') markRead(msg.id);
     setThreadLoading(true);
-    setThread([]);
+    setThreadMsgs([]);
+    inbox.filter(m => m.thread_id === threadId && m.status !== 'read').forEach(m => markRead(m.id));
     try {
-      const result = await getMessageThread(msg.thread_id);
-      setThread(result.length > 0 ? result : [msg]);
+      const result = await getMessageThread(threadId);
+      setThreadMsgs(result.length ? result : [...inbox, ...sent]
+        .filter(m => m.thread_id === threadId)
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
     } catch {
-      setThread([msg]);
+      setThreadMsgs([...inbox, ...sent]
+        .filter(m => m.thread_id === threadId)
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
     } finally {
       setThreadLoading(false);
     }
-  };
+  }, [inbox, sent, markRead]);
 
   const handleReply = async () => {
-    if (!selectedMsg || !replyBody.trim()) return;
+    if (!selectedThread || !replyBody.trim()) return;
+    setReplying(true);
     try {
-      setReplying(true);
+      const latestInbox = inbox.filter(m => m.thread_id === selectedId)[0];
+      const threadRoot = [...inbox, ...sent]
+        .filter(m => m.thread_id === selectedId)
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
       await sendMessage({
-        subject: selectedMsg.subject.startsWith('Re:')
-          ? selectedMsg.subject
-          : `Re: ${selectedMsg.subject}`,
+        subject: `Re: ${selectedThread.subject}`,
         bodyText: replyBody.trim(),
         recipientType: 'school',
-        parentId: selectedMsg.id,
-        threadId: selectedMsg.thread_id,
-        attachments: replyAttachments,
+        threadId: selectedId!,
+        parentId: latestInbox?.id ?? threadRoot?.id,
       });
       setReplyBody('');
-      setReplyAttachments([]);
-      toast.success('Reply sent to your DSO');
+      toast.success('Message sent to your DSO');
       await refresh();
-      if (selectedMsg) {
-        const updated = await getMessageThread(selectedMsg.thread_id);
-        setThread(updated.length > 0 ? updated : thread);
-      }
+      const updated = await getMessageThread(selectedId!);
+      if (updated.length) setThreadMsgs(updated);
     } catch (err) {
-      toast.error('Failed to send reply', {
-        description: err instanceof Error ? err.message : 'Please try again',
-      });
+      toast.error('Failed to send reply', { description: err instanceof Error ? err.message : undefined });
     } finally {
       setReplying(false);
     }
   };
 
   const handleSendNew = async () => {
-    if (!composeSubject.trim() || !composeBody.trim()) {
-      toast.error('Please fill in both subject and message');
-      return;
-    }
+    if (!composeBody.trim()) { toast.error('Write a message first'); return; }
+    setComposeSending(true);
     try {
-      setSending(true);
       await sendMessage({
-        subject: composeSubject.trim(),
+        subject: composeSubject.trim() || TOPICS[composeTopic].label,
         bodyText: composeBody.trim(),
         recipientType: 'school',
-        attachments: composeAttachments,
       });
+      setShowCompose(false);
       setComposeSubject('');
       setComposeBody('');
-      setComposeAttachments([]);
       toast.success('Message sent to your DSO');
-      setActivePanel('sent');
       await refresh();
     } catch (err) {
-      toast.error('Failed to send message', {
-        description: err instanceof Error ? err.message : 'Please try again',
-      });
+      toast.error('Failed to send', { description: err instanceof Error ? err.message : undefined });
     } finally {
-      setSending(false);
+      setComposeSending(false);
     }
   };
 
-  const uploadAttachment = async (
-    file: File,
-    onDone: (att: AttachmentData) => void,
-    setUploading: (v: boolean) => void,
-  ) => {
-    setUploading(true);
-    try {
-      const ext = file.name.split('.').pop();
-      const path = `attachments/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error: uploadError } = await supabase.storage.from('message-attachments').upload(path, file);
-      if (uploadError) throw uploadError;
-      const { data: urlData } = supabase.storage.from('message-attachments').getPublicUrl(path);
-      onDone({ name: file.name, url: urlData.publicUrl, size: file.size, type: file.type });
-    } catch (err) {
-      toast.error('Upload failed', { description: err instanceof Error ? err.message : String(err) });
-    } finally {
-      setUploading(false);
-    }
+  const openCompose = (topicIndex = 0) => {
+    setComposeTopic(topicIndex);
+    setComposeSubject('');
+    setComposeBody('');
+    setShowCompose(true);
   };
 
-  // ── Styles ────────────────────────────────────────────────────────────────
-
-  const avatarColors: Record<string, string> = {
-    dso: '#2563eb', admin: '#7c3aed', student: '#16a34a',
-  };
-  const getAvatarColor = (role: string) => avatarColors[role] ?? '#6b7280';
-
-  const messages = activePanel === 'inbox' ? inbox : sent;
+  const lastThreadMsg = threadMsgs[threadMsgs.length - 1];
+  const awaitingNotice = !!lastThreadMsg && lastThreadMsg.sender_role === 'student';
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
+    <div className="msg-page">
+      <div className={`msg-ws${selectedId ? ' msg-ws--open' : ''}`}>
 
-      {/* Hidden file inputs */}
-      <input ref={composeFileRef} type="file" style={{ display: 'none' }} accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-        onChange={e => { const f = e.target.files?.[0]; if (f) uploadAttachment(f, att => setComposeAttachments(prev => [...prev, att]), setUploadingCompose); e.target.value = ''; }} />
-      <input ref={replyFileRef} type="file" style={{ display: 'none' }} accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-        onChange={e => { const f = e.target.files?.[0]; if (f) uploadAttachment(f, att => setReplyAttachments(prev => [...prev, att]), setUploadingReply); e.target.value = ''; }} />
-
-      {/* Header */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '0 24px', height: '56px', display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-        <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', borderRadius: '6px', border: '1px solid #e5e7eb', background: '#f4f5f7', fontSize: '13px', fontWeight: 500, cursor: 'pointer', color: '#374151', fontFamily: 'inherit' }}>
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="14" height="14"><path d="M10 4L6 8l4 4"/></svg>
-          Back
-        </button>
-        <div style={{ width: '1px', height: '20px', background: '#e5e7eb' }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg viewBox="0 0 16 16" fill="none" stroke="#1d4ed8" strokeWidth="1.5" width="14" height="14"><path d="M2 3h12v8a1 1 0 01-1 1H3a1 1 0 01-1-1V3zm0 0l6 5 6-5"/></svg>
-          </div>
-          <span style={{ fontSize: '15px', fontWeight: 600, color: '#111827' }}>Messaging</span>
-          {unreadCount > 0 && (
-            <span style={{ background: '#dc2626', color: '#fff', fontSize: '11px', fontWeight: 600, padding: '1px 7px', borderRadius: '10px' }}>
-              {unreadCount} new
-            </span>
-          )}
-        </div>
-        <button
-          onClick={() => { setActivePanel('compose'); setSelectedMsg(null); }}
-          style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px', borderRadius: '6px', background: '#2563eb', color: '#fff', border: 'none', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
-        >
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="13" height="13"><path d="M8 3v10M3 8h10"/></svg>
-          New Message
-        </button>
-      </div>
-
-      {/* Body */}
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', background: '#f4f5f7', gap: '0' }}>
-
-        {/* Left: message list */}
-        <div style={{ width: '320px', flexShrink: 0, background: '#fff', borderRight: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' }}>
-
-          {/* Tabs */}
-          <div style={{ display: 'flex', borderBottom: '1px solid #e5e7eb', padding: '0 12px' }}>
-            {(['inbox', 'sent'] as const).map(tab => (
-              <button
-                key={tab}
-                onClick={() => { setActivePanel(tab); setSelectedMsg(null); }}
-                style={{ padding: '12px 14px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', border: 'none', background: 'none', fontFamily: 'inherit', borderBottom: activePanel === tab ? '2px solid #2563eb' : '2px solid transparent', color: activePanel === tab ? '#2563eb' : '#6b7280', marginBottom: '-1px', display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                {tab === 'inbox' ? 'Inbox' : 'Sent'}
-                {tab === 'inbox' && unreadCount > 0 && (
-                  <span style={{ background: '#dc2626', color: '#fff', fontSize: '10px', fontWeight: 600, padding: '0 5px', borderRadius: '8px', lineHeight: '16px' }}>
-                    {unreadCount}
-                  </span>
-                )}
+        {/* ── Left pane ── */}
+        <section className="msg-pane" aria-label="Conversations">
+          <div className="msg-ph">
+            <div className="msg-ph-row">
+              <h1>Messaging</h1>
+              <button className="msg-nb" onClick={() => openCompose()} aria-haspopup="dialog">
+                <i aria-hidden="true">
+                  <svg width="12" height="12" viewBox="0 0 12 12" stroke="#fff" strokeWidth="2" strokeLinecap="round">
+                    <path d="M6 1v10M1 6h10"/>
+                  </svg>
+                </i>
+                Message DSO
               </button>
-            ))}
+            </div>
           </div>
 
-          {/* Message list */}
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div className="msg-tabs" role="group" aria-label="Filter">
+            {(['all', 'unread', 'awaiting'] as const).map((k) => {
+              const label = k === 'all' ? 'All' : k === 'unread' ? 'Unread' : 'Awaiting reply';
+              return (
+                <button key={k} className="msg-tab" aria-pressed={filter === k}
+                  onClick={() => setFilter(k)}>
+                  {label}<b>{counts[k]}</b>
+                </button>
+              );
+            })}
+          </div>
+
+          <ul className="msg-list" role="list">
             {loading ? (
-              <div style={{ padding: '24px 16px', textAlign: 'center', color: '#9ca3af', fontSize: '13px' }}>Loading messages…</div>
+              <li><span className="msg-empty">Loading messages…</span></li>
             ) : error ? (
-              <div style={{ padding: '24px 16px', textAlign: 'center', color: '#ef4444', fontSize: '13px' }}>{error}</div>
-            ) : messages.length === 0 ? (
-              <div style={{ padding: '40px 16px', textAlign: 'center', color: '#9ca3af', fontSize: '13px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" width="36" height="36"><path d="M3 8l9 6 9-6M3 8v10a1 1 0 001 1h16a1 1 0 001-1V8M3 8l9 0 9 0"/></svg>
-                {activePanel === 'inbox' ? 'No messages yet' : 'Nothing sent yet'}
-              </div>
-            ) : (
-              messages.map(msg => {
-                const isSelected = selectedMsg?.id === msg.id;
-                const isUnread   = msg.status !== 'read' && activePanel === 'inbox';
-                return (
-                  <button
-                    key={msg.id}
-                    onClick={() => handleSelectMessage(msg)}
-                    style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', width: '100%', padding: '12px 14px', border: 'none', borderBottom: '1px solid #f3f4f6', background: isSelected ? '#eff6ff' : isUnread ? '#fafbff' : '#fff', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', borderLeft: isSelected ? '3px solid #2563eb' : '3px solid transparent' }}
-                  >
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0, background: getAvatarColor(msg.sender_role), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, color: '#fff' }}>
-                      {senderInitials(msg)}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
-                        <span style={{ fontSize: '13px', fontWeight: isUnread ? 600 : 500, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>
-                          {senderLabel(msg)}
-                        </span>
-                        <span style={{ fontSize: '11px', color: '#9ca3af', flexShrink: 0 }}>{formatRelativeDate(msg.created_at)}</span>
-                      </div>
-                      <div style={{ fontSize: '12.5px', fontWeight: isUnread ? 600 : 400, color: isUnread ? '#111827' : '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '2px' }}>
-                        {msg.subject}
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {msg.body}
-                      </div>
-                    </div>
-                    {isUnread && (
-                      <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#2563eb', flexShrink: 0, marginTop: '6px' }} />
-                    )}
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
+              <li><span className="msg-empty" style={{color:'#dc2626'}}>{error}</span></li>
+            ) : filtered.length === 0 ? (
+              <li><span className="msg-empty">No conversations here.</span></li>
+            ) : filtered.map(t => (
+              <li key={t.thread_id}>
+                <button
+                  className={`msg-cv${t.isUnread ? ' msg-cv--un' : ''}`}
+                  aria-current={t.thread_id === selectedId || undefined}
+                  onClick={() => handleSelectThread(t.thread_id)}
+                >
+                  <span className="msg-av" style={{width:42,height:42,fontSize:14,background:'linear-gradient(135deg,#2563eb,#6366f1)'}}>
+                    {t.dsoInitials}
+                  </span>
+                  <span className="msg-cv-m">
+                    <span className="msg-cv-n">
+                      <span>{t.subject}</span>
+                      <time>{formatTime(t.latestMsg.created_at)}</time>
+                    </span>
+                    <span className="msg-cv-pv">
+                      {t.latestMsg.sender_role === 'student' ? 'You: ' : `${t.dsoName}: `}
+                      {t.latestMsg.body}
+                    </span>
+                    {t.isUnread
+                      ? <span className="msg-tg msg-tg--green">New reply</span>
+                      : t.awaitingDSO
+                      ? <span className="msg-tg msg-tg--amber">Awaiting DSO</span>
+                      : <span className="msg-tg msg-tg--gray">Replied</span>
+                    }
+                  </span>
+                  {t.isUnread && <span className="msg-dot" aria-label="Unread"/>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
 
-        {/* Right: detail / compose */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-          {activePanel === 'compose' ? (
-            /* ── New Message Compose ── */
-            <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '24px' }}>
-              <div style={{ marginBottom: '18px' }}>
-                <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#111827', margin: 0 }}>New Message to DSO</h2>
-                <p style={{ fontSize: '13px', color: '#6b7280', marginTop: '4px' }}>Your message will be sent to the International Student Services office.</p>
+        {/* ── Thread pane ── */}
+        <section className="msg-thread" aria-label="Conversation">
+          {selectedThread ? (
+            <>
+              <div className="msg-thh">
+                <button className="msg-back" aria-label="Back to conversations"
+                  onClick={() => setSelectedId(null)}>←</button>
+                <span className="msg-av" style={{width:40,height:40,fontSize:14,background:'linear-gradient(135deg,#2563eb,#6366f1)'}}>
+                  {selectedThread.dsoInitials}
+                </span>
+                <div>
+                  <h2>{selectedThread.subject}</h2>
+                  <small>{selectedThread.dsoName} · DSO</small>
+                </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Subject *</label>
-                  <input
-                    type="text"
-                    value={composeSubject}
-                    onChange={e => setComposeSubject(e.target.value)}
-                    placeholder="e.g. Question about my OPT application"
-                    style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '13.5px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
-                    onFocus={e => e.currentTarget.style.borderColor = '#2563eb'}
-                    onBlur={e => e.currentTarget.style.borderColor = '#d1d5db'}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Message *</label>
-                  <textarea
-                    value={composeBody}
-                    onChange={e => setComposeBody(e.target.value)}
-                    placeholder="Write your message here…"
-                    rows={8}
-                    style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '13.5px', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.6 }}
-                    onFocus={e => e.currentTarget.style.borderColor = '#2563eb'}
-                    onBlur={e => e.currentTarget.style.borderColor = '#d1d5db'}
-                  />
-                </div>
-                {/* Compose attachment chips */}
-                {composeAttachments.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {composeAttachments.map((att, i) => (
-                      <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '6px', background: '#f3f4f6', border: '1px solid #e5e7eb', fontSize: '12px', color: '#374151' }}>
-                        <svg viewBox="0 0 14 14" fill="none" stroke="#6b7280" strokeWidth="1.5" width="11" height="11"><path d="M7 1v7m-2.5-2.5L7 8l2.5-2.5"/><path d="M2 11h10"/></svg>
-                        {att.name}
-                        <button onClick={() => setComposeAttachments(prev => prev.filter((_, j) => j !== i))} style={{ border: 'none', background: 'none', padding: '0 0 0 2px', cursor: 'pointer', color: '#9ca3af', fontSize: '14px', lineHeight: 1 }}>×</button>
+
+              <div className="msg-msgs" ref={msgsRef} aria-live="polite">
+                {threadLoading ? (
+                  <div className="msg-day">Loading conversation…</div>
+                ) : threadMsgs.map((m, i) => {
+                  const isStudent = m.sender_role === 'student';
+                  const prev = threadMsgs[i - 1];
+                  const showDay = !prev ||
+                    new Date(m.created_at).toDateString() !== new Date(prev.created_at).toDateString();
+                  const time = new Date(m.created_at)
+                    .toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+                  return (
+                    <div key={m.id} style={{display:'contents'}}>
+                      {showDay && (
+                        <div className="msg-day">
+                          {new Date(m.created_at).toLocaleDateString([],
+                            { weekday: 'long', month: 'short', day: 'numeric' })}
+                        </div>
+                      )}
+                      {/* student = right (blue), dso = left (white) */}
+                      <div className={`msg-b ${isStudent ? 'msg-b--right' : 'msg-b--left'}`}>
+                        {m.body}
                       </div>
-                    ))}
+                      <div className={`msg-tm${isStudent ? ' msg-tm--right' : ''}`}>{time}</div>
+                    </div>
+                  );
+                })}
+                {awaitingNotice && (
+                  <div className="msg-wait">
+                    Sent. Your DSO usually replies within 2 business days.
                   </div>
                 )}
-                <div style={{ display: 'flex', gap: '10px', paddingTop: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <button
-                    onClick={handleSendNew}
-                    disabled={sending}
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 20px', borderRadius: '6px', background: sending ? '#93c5fd' : '#2563eb', color: '#fff', border: 'none', fontSize: '13.5px', fontWeight: 500, cursor: sending ? 'default' : 'pointer', fontFamily: 'inherit' }}
-                  >
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="13" height="13"><path d="M1 8l14-6-5 14-3-5-6-3z"/></svg>
-                    {sending ? 'Sending…' : 'Send Message'}
-                  </button>
-                  <button
-                    onClick={() => composeFileRef.current?.click()}
-                    disabled={uploadingCompose}
-                    style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '9px 14px', borderRadius: '6px', background: '#f4f5f7', border: '1px solid #e5e7eb', color: '#374151', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
-                  >
-                    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" width="12" height="12"><path d="M12 9v1.5A1.5 1.5 0 0110.5 12h-7A1.5 1.5 0 012 10.5V9"/><path d="M7 2v7m-2-2.5L7 9l2-2.5"/></svg>
-                    {uploadingCompose ? 'Uploading…' : 'Attach File'}
-                  </button>
-                  <button
-                    onClick={() => { setComposeSubject(''); setComposeBody(''); setComposeAttachments([]); setActivePanel('inbox'); }}
-                    style={{ padding: '9px 16px', borderRadius: '6px', border: '1px solid #e5e7eb', background: '#f4f5f7', color: '#374151', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-
-          ) : selectedMsg ? (
-            /* ── Message Thread Detail ── */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Subject bar */}
-              <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <h2 style={{ fontSize: '15px', fontWeight: 600, color: '#111827', margin: 0 }}>{selectedMsg.subject}</h2>
-                  <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>
-                    {new Date(selectedMsg.created_at).toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                  </p>
-                </div>
-                <span style={{ display: 'inline-flex', alignItems: 'center', padding: '3px 10px', borderRadius: '20px', fontSize: '11.5px', fontWeight: 500, background: selectedMsg.status === 'read' ? '#dcfce7' : '#dbeafe', color: selectedMsg.status === 'read' ? '#166534' : '#1d4ed8' }}>
-                  {selectedMsg.status === 'read' ? 'Read' : 'New'}
-                </span>
               </div>
 
-              {/* Thread chat bubbles */}
-              <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {threadLoading ? (
-                  <div style={{ padding: '16px 0', color: '#9ca3af', fontSize: '13px', textAlign: 'center' }}>Loading conversation…</div>
-                ) : (
-                  (thread.length > 0 ? thread : [selectedMsg]).map(tmsg => {
-                    const isStudent = tmsg.sender_role === 'student';
-                    const bubbleName = isStudent ? (tmsg.sender?.full_name ?? 'Me') : (tmsg.sender?.full_name ?? 'DSO Office');
-                    const bubbleInitials = bubbleName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
-                    return (
-                      <div key={tmsg.id} style={{ display: 'flex', flexDirection: isStudent ? 'row-reverse' : 'row', gap: '8px', alignItems: 'flex-start' }}>
-                        <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: isStudent ? '#2563eb' : '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 600, color: '#fff', flexShrink: 0 }}>
-                          {bubbleInitials}
-                        </div>
-                        <div style={{ maxWidth: '72%' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', flexDirection: isStudent ? 'row-reverse' : 'row' }}>
-                            <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#374151' }}>{bubbleName}</span>
-                            <span style={{ fontSize: '11px', color: '#9ca3af' }}>
-                              {new Date(tmsg.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </div>
-                          <div style={{ background: isStudent ? '#eff6ff' : '#dcfce7', borderRadius: isStudent ? '12px 2px 12px 12px' : '2px 12px 12px 12px', padding: '9px 13px', fontSize: '13.5px', color: '#1f2937', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                            {tmsg.body}
-                          </div>
-                          {tmsg.attachments && tmsg.attachments.length > 0 && (
-                            <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: isStudent ? 'flex-end' : 'flex-start' }}>
-                              {tmsg.attachments.map((att: AttachmentData, ai: number) => (
-                                <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer"
-                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '6px', background: '#f3f4f6', border: '1px solid #e5e7eb', fontSize: '12px', color: '#2563eb', textDecoration: 'none' }}>
-                                  <svg viewBox="0 0 14 14" fill="none" stroke="#2563eb" strokeWidth="1.5" width="11" height="11"><path d="M7 1v7m-2.5-2.5L7 8l2.5-2.5"/><path d="M2 11h10"/></svg>
-                                  {att.name}
-                                </a>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Reply form */}
-              <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '10px', padding: '18px 20px' }}>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: '#111827', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="13" height="13"><path d="M13 5H6L2 9l4 4v-3h7V5z"/></svg>
-                  Reply to DSO
-                </div>
+              <div className="msg-comp">
                 <textarea
                   value={replyBody}
                   onChange={e => setReplyBody(e.target.value)}
-                  placeholder="Type your reply here…"
-                  rows={4}
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '13.5px', fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.6, marginBottom: '10px' }}
-                  onFocus={e => e.currentTarget.style.borderColor = '#2563eb'}
-                  onBlur={e => e.currentTarget.style.borderColor = '#d1d5db'}
+                  placeholder="Reply to your DSO…"
+                  aria-label="Reply"
+                  rows={2}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      handleReply();
+                    }
+                  }}
                 />
-                {/* Reply attachment chips */}
-                {replyAttachments.length > 0 && (
-                  <div style={{ marginBottom: '10px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {replyAttachments.map((att, i) => (
-                      <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '6px', background: '#f3f4f6', border: '1px solid #e5e7eb', fontSize: '12px', color: '#374151' }}>
-                        <svg viewBox="0 0 14 14" fill="none" stroke="#6b7280" strokeWidth="1.5" width="11" height="11"><path d="M7 1v7m-2.5-2.5L7 8l2.5-2.5"/><path d="M2 11h10"/></svg>
-                        {att.name}
-                        <button onClick={() => setReplyAttachments(prev => prev.filter((_, j) => j !== i))} style={{ border: 'none', background: 'none', padding: '0 0 0 2px', cursor: 'pointer', color: '#9ca3af', fontSize: '14px', lineHeight: 1 }}>×</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                  <button
+                <div className="msg-cbar">
+                  <span className="msg-cbar-hint">⌘↵ to send</span>
+                  <button className="msg-btn msg-btn--p"
                     onClick={handleReply}
-                    disabled={replying || !replyBody.trim()}
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 18px', borderRadius: '6px', background: replying || !replyBody.trim() ? '#93c5fd' : '#2563eb', color: '#fff', border: 'none', fontSize: '13px', fontWeight: 500, cursor: replying || !replyBody.trim() ? 'default' : 'pointer', fontFamily: 'inherit' }}
-                  >
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="12" height="12"><path d="M1 8l14-6-5 14-3-5-6-3z"/></svg>
-                    {replying ? 'Sending…' : 'Send Reply'}
-                  </button>
-                  <button
-                    onClick={() => replyFileRef.current?.click()}
-                    disabled={uploadingReply}
-                    style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '8px 13px', borderRadius: '6px', background: '#f4f5f7', border: '1px solid #e5e7eb', color: '#374151', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
-                  >
-                    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" width="12" height="12"><path d="M12 9v1.5A1.5 1.5 0 0110.5 12h-7A1.5 1.5 0 012 10.5V9"/><path d="M7 2v7m-2-2.5L7 9l2-2.5"/></svg>
-                    {uploadingReply ? 'Uploading…' : 'Attach File'}
-                  </button>
-                  <button
-                    onClick={() => { setReplyBody(''); setReplyAttachments([]); }}
-                    style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #e5e7eb', background: '#f4f5f7', color: '#374151', fontSize: '13px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
-                  >
-                    Clear
+                    disabled={replying || !replyBody.trim()}>
+                    {replying ? 'Sending…' : 'Send'}
                   </button>
                 </div>
               </div>
-            </div>
-
+            </>
           ) : (
             /* ── Empty state ── */
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', gap: '12px', paddingTop: '80px' }}>
-              <div style={{ width: '64px', height: '64px', borderRadius: '16px', background: '#f3f4f6', border: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.4" width="32" height="32"><path d="M3 8l9 6 9-6M3 8v10a1 1 0 001 1h16a1 1 0 001-1V8M3 8l9 0 9 0"/></svg>
+            <div className="msg-es">
+              <div>
+                <div className="msg-dsoc">
+                  <span className="msg-av" style={{width:48,height:48,fontSize:15,background:'linear-gradient(135deg,#2563eb,#6366f1)'}}>
+                    QD
+                  </span>
+                  <div>
+                    <h2>DSO Office</h2>
+                    <p>Your Designated School Official</p>
+                  </div>
+                  <div className="msg-dsoc-meta">
+                    <b><span className="msg-on-dot" style={{marginRight:5}}/>Usually replies in 2 days</b>
+                    Mon–Fri · 9am–5pm
+                  </div>
+                </div>
+                <h3>Start a conversation</h3>
+                <div className="msg-starters">
+                  {TOPICS.map((t, i) => (
+                    <button key={i} className="msg-sc" onClick={() => openCompose(i)}>
+                      <i>{t.icon}</i>
+                      <div><b>{t.label}</b><span>{t.desc}</span></div>
+                    </button>
+                  ))}
+                </div>
+                <p style={{textAlign:'center',fontSize:'12.5px',color:'#9ca3af',marginTop:22}}>
+                  Or pick a conversation from the list to read it.
+                </p>
               </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '14px', fontWeight: 500, color: '#6b7280', marginBottom: '4px' }}>Select a message to read</div>
-                <div style={{ fontSize: '13px', color: '#9ca3af' }}>Or compose a new message to your DSO</div>
-              </div>
-              <button
-                onClick={() => setActivePanel('compose')}
-                style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 18px', borderRadius: '6px', background: '#2563eb', color: '#fff', border: 'none', fontSize: '13.5px', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
-              >
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" width="13" height="13"><path d="M8 3v10M3 8h10"/></svg>
-                Message your DSO
-              </button>
             </div>
           )}
+        </section>
+      </div>
+
+      {/* ── Compose modal ── */}
+      <div
+        className={`msg-ov${showCompose ? ' msg-ov--on' : ''}`}
+        onClick={e => { if (e.target === e.currentTarget) setShowCompose(false); }}
+      >
+        <div className="msg-mdl" role="dialog" aria-modal="true" aria-labelledby="msg-compose-title">
+          <div className="msg-mh">
+            <h2 id="msg-compose-title">Message your DSO</h2>
+            <span className="msg-mh-to">To: DSO Office</span>
+            <button className="msg-mh-close" aria-label="Close" onClick={() => setShowCompose(false)}>
+              ✕
+            </button>
+          </div>
+
+          <div className="msg-sec">
+            <span className="msg-sec-l" id="msg-topics-lbl">What is this about?</span>
+            <div className="msg-topics" role="radiogroup" aria-labelledby="msg-topics-lbl">
+              {TOPICS.map((t, i) => (
+                <button key={i} type="button" role="radio"
+                  aria-checked={composeTopic === i}
+                  aria-pressed={composeTopic === i}
+                  onClick={() => setComposeTopic(i)}>
+                  {t.icon} {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="msg-sec">
+            <label htmlFor="msg-csubj">Subject</label>
+            <input id="msg-csubj" className="msg-fld" placeholder="Short summary"
+              value={composeSubject} onChange={e => setComposeSubject(e.target.value)} />
+          </div>
+
+          <div className="msg-sec">
+            <label htmlFor="msg-cbody">Message</label>
+            <textarea id="msg-cbody" className="msg-fld"
+              placeholder="Include dates, your SEVIS ID if relevant, and what you need…"
+              value={composeBody} onChange={e => setComposeBody(e.target.value)} />
+          </div>
+
+          <div className="msg-mf">
+            <span className="msg-mf-hint">Replies usually within 2 business days</span>
+            <div style={{display:'flex',gap:8}}>
+              <button className="msg-btn" onClick={() => setShowCompose(false)}>Cancel</button>
+              <button className="msg-btn msg-btn--p" onClick={handleSendNew} disabled={composeSending}>
+                {composeSending ? 'Sending…' : 'Send'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+
     </div>
   );
 }

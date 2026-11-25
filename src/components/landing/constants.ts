@@ -7,7 +7,7 @@
 export const DEMO_MAILTO = 'mailto:hello@pathly.app';
 
 /** Route for the "Access portal" / sign-in link. */
-export const ACCESS_ROUTE = 'university-choice';
+export const ACCESS_ROUTE = 'sign-in';
 
 // ─── Proof strip ────────────────────────────────────────────────────────────────
 

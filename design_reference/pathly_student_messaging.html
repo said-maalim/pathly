@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pathly – Messaging</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--nav:#1a1f2e;--ink:#111827;--mute:#6b7280;--soft:#9ca3af;--line:#e5e7eb;--bg:#f4f5f7;--blue:#2563eb;--green:#16a34a;--amber:#d97706;--red:#dc2626;font-family:'DM Sans',sans-serif}
+html,body{height:100%;background:var(--bg);color:var(--ink)}
+button,input,textarea,select{font:inherit;color:inherit;cursor:pointer}input,textarea,select{cursor:text}
+button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.shell{display:flex;height:100vh;overflow:hidden}
+.sb{width:220px;background:var(--nav);flex:none;display:flex;flex-direction:column;padding-bottom:16px}
+.logo{display:flex;align-items:center;gap:10px;padding:20px 20px 14px;color:#fff;font-weight:600;font-size:17px;letter-spacing:-.3px}
+.logo i{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#6366f1);display:grid;place-items:center;font-style:normal;font-size:16px}
+.pill{margin:0 14px 18px;display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:8px 12px}
+.pill b{display:block;font-size:12.5px;font-weight:500;color:#e5e7eb}.pill small{font-size:11px;color:#6b7280}
+.sb nav{padding:0 10px}.sb a{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:7px;color:#8b92a5;font-size:13.5px;text-decoration:none;margin-bottom:2px}
+.sb a:hover{color:#fff;background:rgba(255,255,255,.05)}.sb a.on{color:#fff;background:rgba(255,255,255,.08);font-weight:500}.sb svg{width:16px;height:16px;flex:none}
+.badge{margin-left:auto;background:var(--blue);color:#fff;font-size:10px;font-weight:600;padding:1px 7px;border-radius:10px}
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.top{height:56px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:0 24px;flex:none}
+.top .s{flex:1;max-width:520px;height:36px;background:var(--bg);border:1px solid var(--line);border-radius:6px;display:flex;align-items:center;padding:0 12px;color:var(--soft);font-size:13.5px}
+.right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.bell{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--bg);display:grid;place-items:center;position:relative}
+.bell em{position:absolute;top:-3px;right:-3px;background:var(--red);color:#fff;font:600 9px 'DM Sans';border-radius:8px;padding:1px 5px;font-style:normal}
+.chip{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border:1px solid var(--line);border-radius:20px;background:var(--bg);font-size:13px;font-weight:500}
+.av{border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:600;flex:none}
+/* workspace */
+.ws{flex:1;display:grid;grid-template-columns:360px minmax(0,1fr);min-height:0;background:#fff}
+.pane{display:flex;flex-direction:column;min-height:0}
+.lp{border-right:1px solid var(--line)}
+.ph{padding:18px 20px 12px}.ph .row{display:flex;align-items:center;justify-content:space-between}.ph h1{font-size:20px;letter-spacing:-.5px}
+.btn{height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--line);background:#fff;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--bg)}.btn.p{background:var(--blue);border-color:var(--blue);color:#fff}.btn.p:hover{background:#1d4ed8}
+.nb{height:36px;padding:0 14px 0 8px;border:0;border-radius:18px;background:linear-gradient(135deg,#2563eb,#6366f1);color:#fff;font-size:13.5px;font-weight:600;display:inline-flex;align-items:center;gap:8px;box-shadow:0 6px 16px -6px rgba(79,70,229,.7);transition:transform .15s}
+.nb:hover{transform:translateY(-1px)}.nb i{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.22);display:grid;place-items:center;transition:transform .25s}.nb:hover i{transform:rotate(90deg)}
+.tabs{display:flex;gap:6px;padding:4px 20px 12px;border-bottom:1px solid var(--line)}
+.tab{border:1px solid var(--line);background:#fff;border-radius:20px;padding:5px 12px;font-size:12.5px;font-weight:600;color:var(--mute)}
+.tab[aria-pressed=true]{background:var(--nav);border-color:var(--nav);color:#fff}.tab b{font-weight:600;opacity:.65;margin-left:3px}
+.list{flex:1;overflow:auto;list-style:none}
+.cv{display:flex;gap:12px;padding:14px 20px;border:0;border-bottom:1px solid #f3f4f6;position:relative;width:100%;background:none;text-align:left}
+.cv:hover{background:#fafafa}.cv[aria-current=true]{background:#eff6ff}.cv[aria-current=true]::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--blue)}
+.cv .m{flex:1;min-width:0;display:block}.cv .n{display:flex;justify-content:space-between;gap:8px;font-size:14px;font-weight:600}
+.cv .n time{font-size:12px;color:var(--soft);font-weight:400;flex:none}
+.cv .pv{display:block;font-size:12.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.cv.un .n{font-weight:700}.dot{width:8px;height:8px;border-radius:50%;background:var(--blue);flex:none;margin-top:6px}
+.tg{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;margin-top:6px}
+.t-amber{background:#fef3c7;color:#92400e}.t-green{background:#dcfce7;color:#166534}.t-blue{background:#e0e7ff;color:#3730a3}.t-gray{background:#f3f4f6;color:#4b5563}
+.empty{padding:48px 24px;text-align:center;color:var(--mute);font-size:14px}
+/* thread */
+.th{background:#fafbfc}
+.thh{display:flex;align-items:center;gap:12px;padding:14px 24px;background:#fff;border-bottom:1px solid var(--line)}
+.back{display:none;border:0;background:none;font-size:20px}
+.thh h2{font-size:16px;letter-spacing:-.2px}.thh small{color:var(--mute);font-size:13px;display:flex;align-items:center;gap:6px}
+.on-dot{width:7px;height:7px;border-radius:50%;background:var(--green)}
+.link{display:flex;align-items:center;gap:10px;margin:16px 24px 0;padding:11px 14px;background:#fff;border:1px solid var(--line);border-left:3px solid var(--blue);border-radius:10px;font-size:13px}
+.link a{margin-left:auto;color:var(--blue);font-weight:600;text-decoration:none;font-size:13px}.link a:hover{text-decoration:underline}
+.msgs{flex:1;overflow:auto;padding:20px 24px;display:flex;flex-direction:column;gap:6px}
+.day{align-self:center;font-size:12px;color:var(--soft);margin:10px 0 6px}
+.b{max-width:68%;padding:11px 15px;border-radius:16px;font-size:14.5px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.b.d{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}
+.b.s{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:4px}
+.tm{font-size:11.5px;color:var(--soft);margin:0 4px 8px}.tm.s{align-self:flex-end}
+.wait{align-self:center;margin:10px 0;font-size:12.5px;color:#92400e;background:#fef3c7;border-radius:20px;padding:6px 14px}
+.comp{margin:0 24px 20px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 6px 20px -12px rgba(26,31,46,.25)}
+.comp:focus-within{border-color:#93b4f5;box-shadow:0 0 0 3px rgba(37,99,235,.12)}
+.comp textarea{width:100%;border:0;outline:0;resize:none;padding:14px 16px 6px;font-size:14.5px;min-height:56px;max-height:160px;background:none}
+.cbar{display:flex;align-items:center;gap:6px;padding:8px 10px 10px 12px}.cbar .hint{margin-left:auto;font-size:12px;color:var(--soft);margin-right:6px}
+.ib{height:32px;padding:0 10px;border:0;background:none;border-radius:6px;font-size:13px;font-weight:600;color:var(--mute);display:flex;align-items:center;gap:6px}.ib:hover{background:var(--bg);color:var(--ink)}
+/* empty state */
+.es{flex:1;overflow:auto;display:grid;place-items:center;padding:32px;background:radial-gradient(circle at 50% 20%,#eef2ff 0,#fafbfc 60%)}
+.es>div{width:100%;max-width:560px}
+.dsoc{display:flex;align-items:center;gap:14px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 18px;box-shadow:0 10px 30px -18px rgba(26,31,46,.3)}
+.dsoc .av{width:48px;height:48px;font-size:15px;background:linear-gradient(135deg,#2563eb,#6366f1)}
+.dsoc h2{font-size:16px;letter-spacing:-.2px}.dsoc p{font-size:13px;color:var(--mute);margin-top:2px}
+.dsoc .meta{margin-left:auto;text-align:right;font-size:12px;color:var(--mute);line-height:1.5}.dsoc .meta b{display:block;color:var(--ink);font-size:13px}
+.es h3{font-size:13px;color:var(--mute);font-weight:600;margin:26px 2px 10px}
+.starters{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sc{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;text-align:left;display:flex;gap:12px;align-items:flex-start}
+.sc:hover{border-color:#93b4f5;box-shadow:0 8px 20px -14px rgba(37,99,235,.6);transform:translateY(-1px)}
+.sc i{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-style:normal;font-size:16px;flex:none;background:#eef2ff}
+.sc b{display:block;font-size:14px;font-weight:600}.sc span{font-size:12.5px;color:var(--mute)}
+/* modal */
+.ov{position:fixed;inset:0;background:rgba(17,24,39,.45);backdrop-filter:blur(2px);display:none;align-items:flex-start;justify-content:center;padding:9vh 16px 16px;z-index:20}.ov.on{display:flex}
+.mdl{width:100%;max-width:580px;background:#fff;border-radius:16px;box-shadow:0 30px 70px -20px rgba(17,24,39,.5);overflow:hidden;animation:pop .18s ease-out}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.98)}}
+.mh{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}.mh h2{font-size:16px}
+.mh .to{font-size:12.5px;color:var(--mute);margin-left:auto}.mh button{border:0;background:none;font-size:18px;color:var(--mute);width:30px;height:30px;border-radius:8px}.mh button:hover{background:var(--bg)}
+.sec{padding:14px 20px 0}.sec label,.sec .l{display:block;font-size:12px;font-weight:600;color:var(--mute);margin-bottom:8px}
+.topics{display:flex;flex-wrap:wrap;gap:6px}.topics button{border:1px solid var(--line);background:#fff;border-radius:20px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--mute)}
+.topics button[aria-pressed=true]{background:#eef2ff;border-color:#93b4f5;color:var(--blue)}
+.fld{width:100%;height:38px;border:1px solid var(--line);border-radius:8px;padding:0 12px;font-size:14px;background:#fff}
+.mdl textarea.fld{height:130px;padding:10px 12px;resize:none;line-height:1.5}
+.mf{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;margin-top:16px;border-top:1px solid var(--line);background:#fafbfc}.mf .hint{font-size:12px;color:var(--soft)}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--nav);color:#fff;padding:10px 18px;border-radius:10px;font-size:13.5px;opacity:0;transition:.2s;pointer-events:none;z-index:30}.toast.on{opacity:1;transform:translateX(-50%)}
+@media(max-width:860px){.sb{display:none}.ws{grid-template-columns:1fr}.th{display:none}.ws.open .lp{display:none}.ws.open .th{display:flex}.back{display:block}.top .s{display:none}.b{max-width:85%}.starters{grid-template-columns:1fr}.dsoc .meta{display:none}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+ <aside class="sb">
+  <div class="logo"><i>🌐</i>Pathly</div>
+  <div class="pill"><span class="av" style="width:28px;height:28px;font-size:10px;background:linear-gradient(135deg,#6366f1,#8b5cf6)">QS</span><div><b>QA Student Test</b><small>Student · University Portal</small></div></div>
+  <nav aria-label="Main">
+   <a href="pathly_student_dashboard.html"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h5v5H2V2zm0 7h5v5H2V9zm7-7h5v5H9V2zm0 7h5v5H9V9z"/></svg>Dashboard</a>
+   <a href="pathly_request_center.html"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2a4 4 0 00-4 4v3l-1 1h10l-1-1V6a4 4 0 00-4-4zM6.5 13a1.5 1.5 0 003 0"/></svg>Request Center</a>
+   <a href="#" class="on" aria-current="page"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12v8a1 1 0 01-1 1H3a1 1 0 01-1-1V3zm0 0l6 5 6-5"/></svg>Messaging<span class="badge" id="navb"></span></a>
+   <a href="pathly_all_requests.html"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2h6v12H2V5l3-3h3zm0 0v3H2"/><path d="M5 9h6M5 12h4"/></svg>All Requests</a>
+   <a href="pathly_student_profile.html"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="5" r="2.5"/><path d="M3 13c0-3 10-3 10 0"/></svg>My Profile</a>
+  </nav>
+ </aside>
+ <div class="main">
+  <header class="top"><div class="s">Search requests, documents… <span style="margin-left:auto;font-size:11px;background:#e5e7eb;border-radius:4px;padding:1px 6px">⌘K</span></div>
+   <div class="right"><div class="bell" aria-label="Notifications"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2a4 4 0 00-4 4v3l-1 1h10l-1-1V6a4 4 0 00-4-4zM6.5 13a1.5 1.5 0 003 0"/></svg><em>2</em></div>
+   <div class="chip"><span class="av" style="width:28px;height:28px;font-size:11px;background:linear-gradient(135deg,#6366f1,#8b5cf6)">QS</span>QA Student Test</div></div></header>
+  <div class="ws" id="ws">
+   <section class="pane lp" aria-label="Conversations">
+    <div class="ph"><div class="row"><h1>Messaging</h1><button class="nb" id="newm" aria-haspopup="dialog"><i aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M6 1v10M1 6h10"/></svg></i>Message DSO</button></div></div>
+    <div class="tabs" id="tabs" role="group" aria-label="Filter"></div>
+    <ul class="list" id="list"></ul>
+   </section>
+   <section class="pane th" aria-label="Conversation" id="thread"></section>
+  </div>
+ </div>
+</div>
+<div class="ov" id="ov"><div class="mdl" role="dialog" aria-modal="true" aria-labelledby="mt">
+ <div class="mh"><h2 id="mt">Message your DSO</h2><span class="to">To: QA DSO Test</span><button id="mx" aria-label="Close">✕</button></div>
+ <div class="sec"><span class="l" id="tl">What is this about?</span><div class="topics" id="topics" role="radiogroup" aria-labelledby="tl"></div></div>
+ <div class="sec"><label for="nrq">Related request <span style="font-weight:400">(optional)</span></label><select class="fld" id="nrq"></select></div>
+ <div class="sec"><label for="nsj">Subject</label><input class="fld" id="nsj" placeholder="Short summary" /></div>
+ <div class="sec"><label for="nbd">Message</label><textarea class="fld" id="nbd" placeholder="Include dates, your SEVIS ID if relevant, and what you need…"></textarea></div>
+ <div class="mf"><span class="hint">Replies usually within 2 business days</span><div style="display:flex;gap:8px"><button class="btn" id="nc">Cancel</button><button class="btn p" id="ns">Send</button></div></div>
+</div></div>
+<div class="toast" id="toast" role="status"></div>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const REQ=['Program Extension','Summer 2026 CPT','OPT application'];
+const TOP=[['📄','Request update','Ask where a request stands'],['💼','Work authorization','CPT, OPT or STEM questions'],['✈️','Travel & visa','Signatures, renewals, re-entry'],['❓','Something else','Any other question for your DSO']];
+const C=[
+ {id:1,sj:'Re: Program End Date Extension Request',time:'Apr 17',un:true,req:'Program Extension',m:[['s','Apr 16','Hi, my I-20 ends in May but I need one more semester. I submitted the extension request with my advisor letter.','2:14 PM'],['d','Apr 17','Hi Mostaphe, great news! Your request is approved and your updated I-20 will be available in the portal tomorrow. Let me know if you have questions.','9:02 AM']]},
+ {id:2,sj:'Re: Summer 2026 CPT Request',time:'Apr 17',un:true,req:'Summer 2026 CPT',m:[['s','Apr 15','Hi, I have a summer internship offer. Do I need to submit the CPT request before the offer letter is signed?','4:30 PM'],['d','Apr 17','Hi Mostaphe, thanks for reaching out. Your request is under review. Please do not start work until you receive the CPT authorization on your I-20.','1:12 PM']]}
+];
+let cur=null,filt='all',topic=0;
+const last=c=>c.m[c.m.length-1],waiting=c=>last(c)[0]==='s';
+function renderList(){
+ const f=C.filter(c=>filt==='all'||(filt==='un'&&c.un)||(filt==='wait'&&waiting(c)));
+ const cnt={all:C.length,un:C.filter(c=>c.un).length,wait:C.filter(waiting).length};
+ $('tabs').innerHTML=[['all','All'],['un','Unread'],['wait','Awaiting reply']].map(([k,l])=>`<button class="tab" aria-pressed="${filt===k}" data-f="${k}">${l}<b>${cnt[k]}</b></button>`).join('');
+ $('navb').textContent=cnt.un||'';$('navb').style.display=cnt.un?'':'none';
+ $('list').innerHTML=f.length?f.map(c=>{const l=last(c);return`<li><button class="cv ${c.un?'un':''}" data-id="${c.id}" aria-current="${c.id===cur}"><span class="av" style="width:42px;height:42px;font-size:14px;background:linear-gradient(135deg,#2563eb,#6366f1)">QD</span><span class="m"><span class="n"><span>${esc(c.sj)}</span><time>${c.time}</time></span><span class="pv">${l[0]==='s'?'You: ':'QA DSO Test: '}${esc(l[2])}</span>${c.un?'<span class="tg t-green">New reply</span>':waiting(c)?'<span class="tg t-amber">Awaiting DSO</span>':'<span class="tg t-gray">Replied</span>'}</span>${c.un?'<span class="dot" aria-label="Unread"></span>':''}</button></li>`}).join(''):'<div class="empty">No conversations here.</div>';
+}
+function renderThread(){
+ if(cur==null){
+  $('thread').innerHTML=`<div class="es"><div><div class="dsoc"><span class="av">QD</span><div><h2>QA DSO Test</h2><p>Your Designated School Official</p></div><div class="meta"><b><span class="on-dot" style="display:inline-block;margin-right:5px"></span>Usually replies in 2 days</b>Mon–Fri · 9am–5pm</div></div>
+  <h3>Start a conversation</h3><div class="starters">${TOP.map((t,i)=>`<button class="sc" data-start="${i}"><i>${t[0]}</i><div><b>${t[1]}</b><span>${t[2]}</span></div></button>`).join('')}</div>
+  <p style="text-align:center;font-size:12.5px;color:var(--soft);margin-top:22px">Or pick a conversation from the list to read it.</p></div></div>`;return}
+ const c=C.find(x=>x.id===cur);let h='',day='';
+ c.m.forEach(([w,d,x,t])=>{if(d&&d!==day){day=d;h+=`<div class="day">${d}, 2026</div>`}h+=`<div class="b ${w}">${esc(x)}</div><div class="tm ${w}">${t}</div>`});
+ if(waiting(c))h+='<div class="wait">Sent. Your DSO usually replies within 2 business days.</div>';
+ $('thread').innerHTML=`<div class="thh"><button class="back" id="bk" aria-label="Back">←</button><span class="av" style="width:40px;height:40px;font-size:14px;background:linear-gradient(135deg,#2563eb,#6366f1)">QD</span><div><h2>${esc(c.sj)}</h2><small>QA DSO Test · DSO</small></div></div>
+ ${c.req?`<div class="link"><span aria-hidden="true">📎</span><span>About: <b>${esc(c.req)}</b></span><a href="pathly_all_requests.html">View request →</a></div>`:''}
+ <div class="msgs" id="msgs" aria-live="polite">${h}</div>
+ <div class="comp"><textarea id="tx" rows="2" placeholder="Reply to your DSO…" aria-label="Reply"></textarea><div class="cbar"><button class="ib" type="button" id="att">📎 Attach</button><span class="hint">⌘↵ to send</span><button class="btn p" id="send">Send</button></div></div>`;
+ const m=$('msgs');m.scrollTop=m.scrollHeight;
+}
+function show(id){cur=id;C.find(x=>x.id===id).un=false;renderList();renderThread();$('ws').classList.add('open')}
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),1800)}
+const now=()=>new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+function send(){const tx=$('tx'),v=tx.value.trim();if(!v){tx.focus();return}const c=C.find(x=>x.id===cur);c.m.push(['s','',v,now()]);c.time='Now';renderList();renderThread();$('tx').focus();toast('Message sent to your DSO')}
+function openNew(t){topic=t||0;$('nsj').value='';$('nbd').value='';
+ $('nrq').innerHTML='<option value="">None</option>'+REQ.map(r=>`<option>${r}</option>`).join('');
+ pickTopic(topic);$('ov').classList.add('on');$('nsj').focus()}
+function pickTopic(i){topic=i;$('topics').innerHTML=TOP.map((t,k)=>`<button type="button" role="radio" aria-checked="${k===i}" aria-pressed="${k===i}" data-tp="${k}">${t[0]} ${t[1]}</button>`).join('')}
+function closeNew(){$('ov').classList.remove('on')}
+function sendNew(){const b=$('nbd').value.trim();if(!b){$('nbd').focus();return toast('Write a message first')}
+ const c={id:Date.now(),sj:$('nsj').value.trim()||TOP[topic][1],time:'Now',un:false,req:$('nrq').value,m:[['s','Today',b,now()]]};
+ C.unshift(c);closeNew();filt='all';show(c.id);toast('Message sent to your DSO')}
+document.addEventListener('click',e=>{const t=e.target;
+ const cv=t.closest('.cv');if(cv)return show(+cv.dataset.id);
+ const tb=t.closest('.tab');if(tb){filt=tb.dataset.f;return renderList()}
+ const st=t.closest('[data-start]');if(st)return openNew(+st.dataset.start);
+ const tp=t.closest('[data-tp]');if(tp)return pickTopic(+tp.dataset.tp);
+ if(t.closest('#newm'))return openNew();
+ if(t.closest('#mx')||t.closest('#nc')||t.id==='ov')return closeNew();
+ if(t.closest('#ns'))return sendNew();
+ if(t.closest('#send'))return send();
+ if(t.closest('#att'))return toast('Attachments: wire to your upload flow (demo)');
+ if(t.closest('#bk')){cur=null;$('ws').classList.remove('open');renderList();renderThread()}
+});
+document.addEventListener('keydown',e=>{const ov=$('ov').classList.contains('on');
+ if(e.key==='Escape'&&ov)return closeNew();
+ if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){if(ov){e.preventDefault();sendNew()}else if(e.target.id==='tx'){e.preventDefault();send()}}});
+renderList();renderThread();
+</script>
+</body>
+</html>
